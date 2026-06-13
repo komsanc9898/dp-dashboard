@@ -1233,10 +1233,18 @@ const App = {
     const doCapture = () => {
       this.toast('กำลังสร้างภาพ JPG…');
       const el = document.querySelector('main') || document.querySelector('.main-content') || document.getElementById('app') || document.body;
-      const bg = getComputedStyle(document.documentElement).getPropertyValue('--bg-page').trim() || '#ffffff';
+      // ตรวจ dark mode เพื่อกำหนด bg สีตรงๆ (html2canvas ไม่รองรับ color() function)
+      const isDark = document.documentElement.classList.contains('dark') || document.body.classList.contains('dark');
+      const bg = isDark ? '#0f172a' : '#f1f5f9';
       html2canvas(el, {
         scale: 2, useCORS: true, allowTaint: true,
-        backgroundColor: bg || '#ffffff', logging: false,
+        backgroundColor: bg, logging: false,
+        onclone: (doc) => {
+          // ลบ CSS ที่ใช้ color() function ออกจาก clone เพื่อป้องกัน parse error
+          doc.querySelectorAll('[style]').forEach(el => {
+            if (el.style.cssText.includes('color(')) el.style.cssText = '';
+          });
+        },
         ignoreElements: el => el.classList && (el.classList.contains('popup') || el.classList.contains('overlay')),
       }).then(canvas => {
         const a = document.createElement('a');
