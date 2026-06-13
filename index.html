@@ -403,6 +403,7 @@ tr.total:hover td{background:var(--surface-3);}
   body{background:#fff;}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
 <div class="app" id="app">
@@ -1222,13 +1223,37 @@ const App = {
     };
     document.getElementById('popExp').innerHTML=
       item(I.pdf,'Export PDF','exportPDF()')+
-      item(I.img,'Export ภาพ (PNG)','exportPNG()')+
+      item(I.img,'Export ภาพ (JPG)','exportPNG()')+
       '<div class="pop-sep"></div>'+
       item(I.xls,'Export Excel (CSV)','exportCSV()')+
       item(I.ppt,'Export PowerPoint','exportNote()');
   },
   exportPDF(){ this.closeAll(); window.print(); },
-  exportPNG(){ this.closeAll(); this.toast('กำลังเตรียมรูปภาพ… (เชื่อมต่อ backend เพื่อบันทึกไฟล์จริง)'); },
+  exportPNG(){
+    this.closeAll();
+    this.toast('กำลังสร้างภาพ JPG…');
+    const el = document.getElementById('mainContent') || document.querySelector('.page-content') || document.body;
+    import('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js').then(()=>{
+      html2canvas(el, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg-page') || '#f8fafc',
+        logging: false,
+      }).then(canvas => {
+        const a = document.createElement('a');
+        a.href = canvas.toDataURL('image/jpeg', 0.92);
+        a.download = `NiM_${['','ภาพรวม','KPI','ภูมิภาค','สาขา'][App.selPage]||'Dashboard'}_${TM[App.selMonth]}${App.selYear}.jpg`;
+        a.click();
+        App.toast('บันทึกภาพ JPG สำเร็จ ✅');
+      }).catch(()=>App.toast('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง'));
+    }).catch(()=>{
+      // fallback: load script แบบ dynamic
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload = () => App.exportPNG();
+      document.head.appendChild(s);
+    });
+  },
   exportCSV(){
     this.closeAll();
     if(!this.D) return;
