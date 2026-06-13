@@ -125,7 +125,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 /* ---- Main column ---- */
 .shell{flex:1;min-width:0;display:flex;flex-direction:column;}
 .topbar{
-  position:sticky;top:0;z-index:30;background:color-mix(in srgb,var(--bg) 78%, transparent);
+  position:sticky;top:0;z-index:30;background:var(--bg);
   backdrop-filter:saturate(1.4) blur(14px);-webkit-backdrop-filter:saturate(1.4) blur(14px);
   border-bottom:1px solid var(--border);
   padding:13px clamp(16px,3vw,30px);display:flex;align-items:center;justify-content:space-between;gap:14px;
@@ -376,7 +376,7 @@ tr.total:hover td{background:var(--surface-3);}
   .desktop-only{display:none!important;}
   .tabbar{
     display:flex;position:fixed;bottom:0;left:0;right:0;z-index:50;
-    background:color-mix(in srgb,var(--surface) 90%,transparent);
+    background:var(--surface);
     backdrop-filter:blur(16px) saturate(1.4);-webkit-backdrop-filter:blur(16px) saturate(1.4);
     border-top:1px solid var(--border);padding:7px 6px calc(7px + env(safe-area-inset-bottom));justify-content:space-around;
   }
@@ -663,7 +663,7 @@ const ICON = {
   cold:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M4 7l16 10M20 7 4 17M12 5 9 8m3-3 3 3M4 9.5 7 11 4 12.5M20 9.5 17 11l3 1.5M12 19l-3-3m3 3 3-3"/></svg>',
   shop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9.5 4.5 4h15L21 9.5M4 9.5h16V20H4zM4 9.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0"/></svg>',
 };
-function kpiIconTint(varName){ return `background:color-mix(in srgb, var(${varName}) 14%, transparent);color:var(${varName});`; }
+function kpiIconTint(varName){ return `background:var(${varName});opacity:0.85;color:#fff;`; }
 
 const PHAK_ORDER = ['กทม.','กลาง','เหนือ','อีสาน','ตะวันออก','ใต้'];
 const PHAK_COLOR = {'กทม.':'#3b82f6','กลาง':'#8b5cf6','เหนือ':'#f59e0b','อีสาน':'#10b981','ตะวันออก':'#06b6d4','ใต้':'#ef4444'};
