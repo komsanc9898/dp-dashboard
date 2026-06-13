@@ -583,9 +583,9 @@ function buildData(month,year){
   function sb(kind){
     const blk={},tot={bkk:0,upc:0,pa:0,act:0};
     for(let m=1;m<=12;m++){
-      const has=AVAIL[2569].includes(m);let bkkv=0,upcv=0,pav=0,actv=0;
-      if(has) DP_MASTER.forEach(d=>{
-        const act=kind==='ab'?d.act69_ab[m-1]:kind==='cc'?d.act69_cc[m-1]:d.act69_ab[m-1]+d.act69_cc[m-1];
+      const hasAct=AVAIL[2569].includes(m);let bkkv=0,upcv=0,pav=0,actv=0;
+      DP_MASTER.forEach(d=>{
+        const act=hasAct?(kind==='ab'?d.act69_ab[m-1]:kind==='cc'?d.act69_cc[m-1]:d.act69_ab[m-1]+d.act69_cc[m-1]):0;
         const pa=kind==='ab'?d.pa_ab[m-1]||0:kind==='cc'?d.pa_cc[m-1]||0:(d.pa_ab[m-1]||0)+(d.pa_cc[m-1]||0);
         if(d.phak==='กทม.')bkkv+=act;else upcv+=act;pav+=pa;actv+=act;
       });
@@ -733,22 +733,25 @@ function overview(){
     <div class="section"><div class="kpi-grid">${kpiHTML}</div></div>
 
     <div class="section">
-      <div class="two-col" style="grid-template-columns:1.7fr 1fr;">
-        <div class="card card-pad">
-          <div class="sec-head"><div><h2>แนวโน้มรายได้ 12 เดือน</h2><div class="sh-sub">ACT 2568 · PLAN 2569 · ACT 2569 (ล้านบาท)</div></div></div>
-          <div style="display:flex;gap:18px;margin:0 0 10px;align-items:center;flex-wrap:wrap;">
-            <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500"><i style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0"></i>ACT 68</span>
-            <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500"><i style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;flex-shrink:0"></i>PLAN 69</span>
-            <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500"><i style="width:10px;height:10px;border-radius:50%;background:#0fb5a6;display:inline-block;flex-shrink:0"></i>ACT 69</span>
+      <div class="card card-pad">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;">
+          <div>
+            <div class="sec-head" style="margin-bottom:8px;"><div><h2 style="color:#000">แนวโน้มรายได้ 12 เดือน</h2><div class="sh-sub" style="color:#000">ACT 2568 · PLAN 2569 · ACT 2569 (ล้านบาท)</div></div></div>
+            <div style="display:flex;gap:18px;margin:0 0 10px;align-items:center;flex-wrap:wrap;">
+              <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:#000"><i style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0"></i>ACT 68</span>
+              <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:#000"><i style="width:10px;height:10px;border-radius:50%;background:#ef4444;display:inline-block;flex-shrink:0"></i>PLAN 69</span>
+              <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:#000"><i style="width:10px;height:10px;border-radius:50%;background:#2563eb;display:inline-block;flex-shrink:0"></i>ACT 69</span>
+            </div>
+            <div class="chart-box" style="height:300px;"><canvas id="trendChart"></canvas></div>
           </div>
-          <div class="chart-box" style="height:300px;"><canvas id="trendChart"></canvas></div>
-        </div>
-        <div class="card card-pad">
-          <div class="sec-head"><div><h2>สัดส่วนรายได้</h2><div class="sh-sub">กทม. vs ต่างจังหวัด</div></div></div>
-          <div class="chart-box" style="height:188px;"><canvas id="donutChart"></canvas></div>
-          <div style="display:flex;justify-content:center;gap:18px;margin-top:14px;">
-            <span class="chip neu"><i style="width:9px;height:9px;border-radius:9px;background:var(--info);display:inline-block"></i>&nbsp;กทม. ${area.total?Math.round(area.bkk/area.total*100):0}%</span>
-            <span class="chip neu"><i style="width:9px;height:9px;border-radius:9px;background:var(--accent);display:inline-block"></i>&nbsp;ตจว. ${area.total?Math.round(area.upcountry/area.total*100):0}%</span>
+          <div style="width:200px;text-align:center;padding-top:4px;">
+            <div style="font-weight:600;font-size:13px;margin-bottom:2px;color:#000">สัดส่วนรายได้</div>
+            <div style="font-size:11px;color:#000;margin-bottom:8px;">กทม. vs ตจว. · ${TMF[App.selMonth]} ${App.selYear}</div>
+            <div class="chart-box" style="height:160px;"><canvas id="donutChart"></canvas></div>
+            <div style="display:flex;justify-content:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
+              <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#000"><i style="width:8px;height:8px;border-radius:50%;background:var(--info);display:inline-block"></i>กทม. ${area.total?Math.round(area.bkk/area.total*100):0}%</span>
+              <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#000"><i style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block"></i>ตจว. ${area.total?Math.round(area.upcountry/area.total*100):0}%</span>
+            </div>
           </div>
         </div>
       </div>
@@ -769,14 +772,15 @@ function overview(){
   })(0);
 }
 
+Chart.defaults.color = '#000';
 function buildTrend(){
   const D=App.D, t=D.trend;
   const toM = o => Object.keys(o).map(k=>o[k]==null?null:+(o[k]/1e6).toFixed(2));
   const a68=toM(t.act68), p69=toM(t.pa69), a69=toM(t.act69);
   const selIdx=App.selMonth-1;
-  const TEAL='#0fb5a6';
+  const BLUE='#2563eb';
   const r=a69.map((v,i)=>v==null?0:(i===selIdx?8:3));
-  const bg=a69.map((v,i)=>i===selIdx?'#facc15':TEAL);
+  const bg=a69.map((v,i)=>i===selIdx?'#facc15':BLUE);
   if(App.charts.trend){ try{App.charts.trend.destroy();}catch(e){} }
   const trendEl=document.getElementById('trendChart'); if(!trendEl) return;
   const exT=Chart.getChart(trendEl); if(exT) exT.destroy();
@@ -786,15 +790,15 @@ function buildTrend(){
     data:{labels:TM.slice(1),datasets:[
       {label:'ACT 68',data:a68,borderColor:'#22c55e',borderWidth:2.2,pointRadius:2.5,pointBackgroundColor:'#22c55e',tension:.4,spanGaps:false},
       {label:'PLAN 69',data:p69,borderColor:'#ef4444',borderDash:[5,4],borderWidth:2,pointRadius:2.5,pointBackgroundColor:'#ef4444',tension:.4},
-      {label:'ACT 69',data:a69,borderColor:TEAL,borderWidth:2.5,pointRadius:r,pointBackgroundColor:bg,pointBorderColor:bg,tension:.4,spanGaps:false,fill:{target:'origin',above:'rgba(15,181,166,0.08)'}},
+      {label:'ACT 69',data:a69,borderColor:BLUE,borderWidth:2.5,pointRadius:r,pointBackgroundColor:bg,pointBorderColor:bg,tension:.4,spanGaps:false,fill:{target:'origin',above:'rgba(37,99,235,0.07)'}},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y??'-')+'M'}}},
-      scales:{x:{ticks:{font:{size:12,family:cssv('--font')},color:tx},grid:{display:false},border:{display:false}},
+      scales:{x:{ticks:{font:{size:12,family:cssv('--font')},color:'#000'},grid:{display:false},border:{display:false}},
         y:{
           min: (()=>{ const all=[...a68,...p69,...a69].filter(v=>v!=null); const mn=Math.min(...all); return Math.floor((mn-2)/5)*5; })(),
           max: (()=>{ const all=[...a68,...p69,...a69].filter(v=>v!=null); const mx=Math.max(...all); return Math.ceil((mx+2)/5)*5; })(),
-          ticks:{font:{size:12},color:tx,callback:v=>v+'M',stepSize:5},
+          ticks:{font:{size:12},color:'#000',callback:v=>v+'M',stepSize:5},
           grid:{color:grid},border:{display:false}
         }}}
   });
