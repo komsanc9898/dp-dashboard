@@ -852,7 +852,7 @@ function kpi(){
   const bkkA=area.bkk,upcA=area.upcountry,totAct=area.total;
   const totDp=D.meta.dp_count.total;
   const bkkDp=Math.round(totDp*(bkkA/(totAct||1))),upcDp=totDp-bkkDp;
-  const totPa=C.pa_total.total,bkkPa=Math.round(totPa*(bkkA/(totAct||1))),upcPa=totPa-bkkPa;
+  const totPa=Math.round(C.pa_total.total),bkkPa=Math.round(totPa*(bkkA/(totAct||1))),upcPa=totPa-bkkPa;
   const tt=tier.reduce((s,x)=>s+x.total,0);
 
   App.host.innerHTML=`
