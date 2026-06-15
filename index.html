@@ -402,6 +402,42 @@ tr.total:hover td{background:var(--surface-3);}
   .card,.kpi,.tbl-card,.rgn{box-shadow:none!important;border:1px solid #ddd!important;break-inside:avoid;}
   body{background:#fff;}
 }
+
+/* Trend + Donut responsive layout */
+.trend-donut-wrap {
+  display: grid;
+  grid-template-columns: 1fr 200px;
+  gap: 16px;
+  align-items: start;
+}
+.donut-side {
+  text-align: center;
+  padding-top: 4px;
+}
+@media (max-width: 700px) {
+  .trend-donut-wrap {
+    grid-template-columns: 1fr;
+  }
+  .donut-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+    text-align: left;
+    padding-top: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 12px;
+    margin-top: 4px;
+  }
+  .donut-side > div:first-child,
+  .donut-side > div:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+  .donut-side .chart-box {
+    height: 120px !important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -734,8 +770,8 @@ function overview(){
 
     <div class="section">
       <div class="card card-pad">
-        <div style="display:grid;grid-template-columns:1fr auto;gap:16px;align-items:start;">
-          <div>
+        <div class="trend-donut-wrap">
+          <div class="trend-main">
             <div class="sec-head" style="margin-bottom:8px;"><div><h2 style="color:#000">แนวโน้มรายได้ 12 เดือน</h2><div class="sh-sub" style="color:#000">ACT 2568 · PLAN 2569 · ACT 2569 (ล้านบาท)</div></div></div>
             <div style="display:flex;gap:18px;margin:0 0 10px;align-items:center;flex-wrap:wrap;">
               <span style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:#000"><i style="width:10px;height:10px;border-radius:50%;background:#22c55e;display:inline-block;flex-shrink:0"></i>ACT 68</span>
@@ -744,7 +780,7 @@ function overview(){
             </div>
             <div class="chart-box" style="height:300px;"><canvas id="trendChart"></canvas></div>
           </div>
-          <div style="width:200px;text-align:center;padding-top:4px;">
+          <div class="donut-side">
             <div style="font-weight:600;font-size:13px;margin-bottom:2px;color:#000">สัดส่วนรายได้</div>
             <div style="font-size:11px;color:#000;margin-bottom:8px;">กทม. vs ตจว. · ${TMF[App.selMonth]} ${App.selYear}</div>
             <div class="chart-box" style="height:160px;"><canvas id="donutChart"></canvas></div>
