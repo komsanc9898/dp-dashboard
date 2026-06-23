@@ -661,7 +661,7 @@ function buildKpiWorkbook(MONTH, YEAR){
   const idx = MONTH - 1;
   const ALL = DP_MASTER;
   const ACTIVE = ALL.filter(d => ((d.act69_ab[idx]||0)+(d.act69_cc[idx]||0)) > 0);
-  const REGIONS = PHAK_ORDER; // ['กทม.','กลาง','เหนือ','อีสาน','ตะวันออก','ใต้']
+  const REGIONS = (window.PFmt && window.PFmt.PHAK_ORDER) || ['กทม.','กลาง','เหนือ','อีสาน','ตะวันออก','ใต้'];
 
   const sum = (arr, fn) => arr.reduce((s,d)=>s+fn(d), 0);
   const paAB = d => d.pa_ab[idx]||0, paCC = d => d.pa_cc[idx]||0;
