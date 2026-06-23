@@ -656,6 +656,486 @@ async function loadDataset(month,year){
   return buildData(month,year);
 }
 
+/* ============ XLSX EXPORT (full styled workbook, matches KPI report template) ============ */
+function buildKpiWorkbook(MONTH, YEAR){
+  const idx = MONTH - 1;
+  const ALL = DP_MASTER;
+  const ACTIVE = ALL.filter(d => ((d.act69_ab[idx]||0)+(d.act69_cc[idx]||0)) > 0);
+  const REGIONS = PHAK_ORDER; // ['กทม.','กลาง','เหนือ','อีสาน','ตะวันออก','ใต้']
+
+  const sum = (arr, fn) => arr.reduce((s,d)=>s+fn(d), 0);
+  const paAB = d => d.pa_ab[idx]||0, paCC = d => d.pa_cc[idx]||0;
+  const actAB = d => d.act69_ab[idx]||0, actCC = d => d.act69_cc[idx]||0;
+  const act68AB = d => d.act68_ab[idx]||0, act68CC = d => d.act68_cc[idx]||0;
+  const billAB = d => (d.act69_ab_bill && d.act69_ab_bill[idx])||0, pcsAB = d => (d.act69_ab_pcs && d.act69_ab_pcs[idx])||0;
+  const billCC = d => (d.act69_cc_bill && d.act69_cc_bill[idx])||0, pcsCC = d => (d.act69_cc_pcs && d.act69_cc_pcs[idx])||0;
+  const paT = d => paAB(d)+paCC(d), actT = d => actAB(d)+actCC(d), act68T = d => act68AB(d)+act68CC(d);
+  const billT = d => billAB(d)+billCC(d), pcsT = d => pcsAB(d)+pcsCC(d);
+
+  const KIND = {
+    t:  {pa:paT,  act:actT,  act68:act68T,  bill:billT,  pcs:pcsT},
+    ab: {pa:paAB, act:actAB, act68:act68AB, bill:billAB, pcs:pcsAB},
+    cc: {pa:paCC, act:actCC, act68:act68CC, bill:billCC, pcs:pcsCC},
+  };
+
+  const PA_T  = sum(ALL,paT),  ACT_T  = sum(ACTIVE,actT),  ACT68_T  = sum(ALL,act68T);
+  const PA_AB = sum(ALL,paAB), ACT_AB = sum(ACTIVE,actAB), ACT68_AB = sum(ALL,act68AB);
+  const PA_CC = sum(ALL,paCC), ACT_CC = sum(ACTIVE,actCC), ACT68_CC = sum(ALL,act68CC);
+
+  const splitOldNew = items => [items.filter(d=>!d.isNew), items.filter(d=>d.isNew)];
+
+  /* ---- styles ---- */
+  const FONT_NAME = 'Prompt';
+  const BLUE='0070C0', BLUE2='2563EB', LIGHTBLUE='EFF6FF', STRIPE='F8FAFC';
+  const NAVY='1E3A5F', RED='DC2626', GREEN='16A34A', WHITE='FFFFFF';
+  const thin = {style:'thin', color:{rgb:'D1D5DB'}};
+  const medBlue = {style:'medium', color:{rgb:BLUE}};
+
+  const sTitle = (sz=13) => ({font:{name:FONT_NAME,sz,bold:true,color:{rgb:WHITE}}, fill:{fgColor:{rgb:BLUE}}, alignment:{horizontal:'center',vertical:'center'}});
+  const sSubtitle = () => ({font:{name:FONT_NAME,sz:11,bold:true,color:{rgb:WHITE}}, fill:{fgColor:{rgb:BLUE2}}, alignment:{horizontal:'left',vertical:'center'}});
+  const sHeader = () => ({font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center',vertical:'center'}, border:{top:medBlue,bottom:{style:'thin',color:{rgb:BLUE}}}});
+  const sData = (opt={}) => ({
+    font:{name:FONT_NAME,sz:9,bold:!!opt.bold,color:{rgb:opt.color||NAVY}},
+    fill: opt.stripe ? {fgColor:{rgb:STRIPE}} : undefined,
+    alignment:{horizontal:opt.first?'left':'right', indent:opt.indent||0},
+    numFmt: opt.fmt
+  });
+  const sTotal = (fmt) => ({font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:WHITE}}, fill:{fgColor:{rgb:BLUE}}, alignment:{horizontal:'right'}, numFmt: fmt});
+  const pctColor = v => v < 0 ? RED : GREEN;
+
+  /* ---- AOA + style builder helpers ---- */
+  function mkSheet(){ return { rows: [], merges: [], colWidths: [], rowHeights: {} }; }
+  function setRow(sheet, r, values, styleFn){
+    sheet.rows[r] = sheet.rows[r] || [];
+    values.forEach((v,i)=>{ sheet.rows[r][i] = {v, s: styleFn ? styleFn(i,v) : undefined}; });
+  }
+  function setCell(sheet, r, c, v, s){ sheet.rows[r]=sheet.rows[r]||[]; sheet.rows[r][c]={v,s}; }
+
+  function titleRow(sheet, r, c1, c2, text, sz){
+    sheet.merges.push({s:{r,c:c1},e:{r,c:c2}});
+    setCell(sheet, r, c1, text, sTitle(sz));
+    for(let c=c1+1;c<=c2;c++) setCell(sheet, r, c, '', sTitle(sz));
+    sheet.rowHeights[r] = sz>=12 ? 28 : 18;
+  }
+  function subtitleRow(sheet, r, c1, c2, text){
+    sheet.merges.push({s:{r,c:c1},e:{r,c:c2}});
+    setCell(sheet, r, c1, text, sSubtitle());
+    for(let c=c1+1;c<=c2;c++) setCell(sheet, r, c, '', sSubtitle());
+    sheet.rowHeights[r] = 22;
+  }
+  function headerRow(sheet, r, headers, startCol=0){
+    headers.forEach((h,i)=> setCell(sheet, r, startCol+i, h, sHeader()));
+    sheet.rowHeights[r] = 18;
+  }
+  function dataRow(sheet, r, values, fmts, opt={}){
+    values.forEach((v,i)=>{
+      const fmt = fmts ? fmts[i] : null;
+      const isFirst = i===0;
+      const color = (opt.colors && opt.colors[i]) || null;
+      setCell(sheet, r, i, v, sData({bold:opt.bold, stripe:opt.stripe, color, fmt, first:isFirst, indent:opt.indent}));
+    });
+    sheet.rowHeights[r] = 17;
+  }
+  function totalRow(sheet, r, values, fmts){
+    values.forEach((v,i)=> setCell(sheet, r, i, v, sTotal(fmts?fmts[i]:null)));
+    sheet.rowHeights[r] = 18;
+  }
+
+  function sheetToAOA(sheet, colWidths){
+    const maxCol = sheet.rows.reduce((m,row)=> row ? Math.max(m,row.length) : m, 0);
+    const aoa = sheet.rows.map(row=>{
+      const arr = [];
+      for(let c=0;c<maxCol;c++){
+        const cell = (row && row[c]) || {v:null, s:undefined};
+        arr.push(cell);
+      }
+      return arr;
+    });
+    const ws = {};
+    let maxR = aoa.length, maxC = maxCol;
+    aoa.forEach((row, r)=>{
+      row.forEach((cell,c)=>{
+        if(cell.v===null || cell.v===undefined || cell.v==='') {
+          if(!(cell.s)) return;
+        }
+        const addr = XLSX.utils.encode_cell({r,c});
+        let t='s', v=cell.v;
+        if(typeof v === 'number') t='n';
+        if(v===null||v===undefined) { v=''; t='s'; }
+        const cellObj = {t, v};
+        if(t==='n' && cell.s && cell.s.numFmt) cellObj.z = cell.s.numFmt;
+        if(cell.s){
+          const st = {};
+          if(cell.s.font) st.font = cell.s.font;
+          if(cell.s.fill) st.fill = {patternType:'solid', fgColor:cell.s.fill.fgColor, bgColor:cell.s.fill.fgColor};
+          if(cell.s.alignment) st.alignment = cell.s.alignment;
+          if(cell.s.border) st.border = cell.s.border;
+          cellObj.s = st;
+        }
+        ws[addr] = cellObj;
+      });
+    });
+    ws['!ref'] = XLSX.utils.encode_range({s:{r:0,c:0}, e:{r:Math.max(maxR-1,0), c:Math.max(maxC-1,0)}});
+    if(sheet.merges.length) ws['!merges'] = sheet.merges;
+    if(colWidths) ws['!cols'] = colWidths.map(w=>({wch:w}));
+    const rowsArr = [];
+    Object.keys(sheet.rowHeights).forEach(r=>{ rowsArr[+r] = {hpt: sheet.rowHeights[r]}; });
+    if(rowsArr.length) ws['!rows'] = rowsArr;
+    return ws;
+  }
+
+  const FMT_INT = '#,##0', FMT_PCT2 = '0.00%', FMT_PCT1 = '0.0%';
+  const wb = XLSX.utils.book_new();
+
+  /* ===================== Sheet 1: สรุป ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 6, `KPI Dashboard · NiM Express · ${TMF[MONTH]} ${YEAR}`, 13);
+    sh.merges.push({s:{r:1,c:0},e:{r:1,c:6}});
+    setCell(sh, 1, 0, `ข้อมูล ณ ${TMF[MONTH]} ${YEAR} | PA 69 vs ACT 69 vs ACT 68`, {font:{name:FONT_NAME,sz:9,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
+    for(let c=1;c<=6;c++) setCell(sh,1,c,'',{fill:{fgColor:{rgb:LIGHTBLUE}}});
+
+    let r = 2;
+    function oldNewSummary(kind){
+      const [oldAll, newAll] = splitOldNew(ALL);
+      const [oldAct, newAct] = splitOldNew(ACTIVE);
+      const vals = (itemsAll, itemsAct) => [sum(itemsAll, KIND[kind].pa), sum(itemsAct, KIND[kind].act), sum(itemsAll, KIND[kind].act68)];
+      const [pa_o, act_o, a68_o] = vals(oldAll, oldAct);
+      const [pa_n, act_n, a68_n] = vals(newAll, newAct);
+      return [['  └ Drop Point เก่า', pa_o, act_o, a68_o], ['  └ Drop Point ใหม่', pa_n, act_n, a68_n]];
+    }
+    function blockSummary(label, pa, act, act68, rows2){
+      subtitleRow(sh, r, 0, 6, `▸  ${label}  ·  ${TMF[MONTH]} ${YEAR}`); r++;
+      headerRow(sh, r, ['รายการ','PA 69','ACT 69','Diff%','ACT 68','Growth%','Diff (฿)']); r++;
+      const diffpct = pa? (act-pa)/pa : 0, growth = act68? (act-act68)/act68 : 0;
+      totalRow(sh, r, ['ยอดรวม', pa, act, diffpct, act68, growth, act-pa], [null,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,FMT_PCT2,FMT_INT]); r++;
+      rows2.forEach(([label2,pa2,act2,a682])=>{
+        const dp = pa2? (act2-pa2)/pa2 : 0, gr = a682? (act2-a682)/a682 : 0;
+        dataRow(sh, r, [label2,pa2,act2,dp,a682,gr,act2-pa2], [null,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,FMT_PCT2,FMT_INT], {colors:[null,null,null,pctColor(dp),null,pctColor(gr),null]});
+        r++;
+      });
+      r++;
+    }
+    blockSummary('AB+CC', PA_T, ACT_T, ACT68_T, oldNewSummary('t'));
+
+    // YTD
+    const ytdIdx = []; for(let m=0;m<MONTH;m++) ytdIdx.push(m);
+    const sumYtd = (items, key) => items.reduce((s,d)=> s + ytdIdx.reduce((s2,m)=> s2+(d[key][m]||0), 0), 0);
+    const ytdActiveOf = items => items.filter(d=> ytdIdx.reduce((s,m)=>s+(d.act69_ab[m]||0)+(d.act69_cc[m]||0),0) > 0);
+    const pa_ytd = sumYtd(ALL,'pa_ab') + sumYtd(ALL,'pa_cc');
+    const activeYtd = ytdActiveOf(ALL);
+    const act_ytd = sumYtd(activeYtd,'act69_ab') + sumYtd(activeYtd,'act69_cc');
+    const act68_ytd = sumYtd(ALL,'act68_ab') + sumYtd(ALL,'act68_cc');
+
+    subtitleRow(sh, r, 0, 6, `▸  YTD  ·  ม.ค. – ${TM[MONTH]} ${YEAR}`); r++;
+    headerRow(sh, r, ['รายการ','PA 69','ACT 69','Diff%','ACT 68','Growth%','Diff (฿)']); r++;
+    {
+      const dp_ytd = pa_ytd? (act_ytd-pa_ytd)/pa_ytd : 0, gr_ytd = act68_ytd? (act_ytd-act68_ytd)/act68_ytd : 0;
+      totalRow(sh, r, ['ยอดรวม', pa_ytd, act_ytd, dp_ytd, act68_ytd, gr_ytd, act_ytd-pa_ytd], [null,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,FMT_PCT2,FMT_INT]); r++;
+    }
+    const [oldAllG, newAllG] = splitOldNew(ALL);
+    [['  └ Drop Point เก่า', oldAllG], ['  └ Drop Point ใหม่', newAllG]].forEach(([label2, itemsAll])=>{
+      const pa_v = sumYtd(itemsAll,'pa_ab') + sumYtd(itemsAll,'pa_cc');
+      const itemsAct = ytdActiveOf(itemsAll);
+      const act_v = sumYtd(itemsAct,'act69_ab') + sumYtd(itemsAct,'act69_cc');
+      const a68_v = sumYtd(itemsAll,'act68_ab') + sumYtd(itemsAll,'act68_cc');
+      const dp_v = pa_v? (act_v-pa_v)/pa_v : 0, gr_v = a68_v? (act_v-a68_v)/a68_v : 0;
+      dataRow(sh, r, [label2,pa_v,act_v,dp_v,a68_v,gr_v,act_v-pa_v], [null,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,FMT_PCT2,FMT_INT], {colors:[null,null,null,pctColor(dp_v),null,pctColor(gr_v),null]});
+      r++;
+    });
+    r++;
+
+    blockSummary('AB', PA_AB, ACT_AB, ACT68_AB, oldNewSummary('ab'));
+    blockSummary('CC', PA_CC, ACT_CC, ACT68_CC, oldNewSummary('cc'));
+
+    // พื้นที่
+    subtitleRow(sh, r, 0, 6, `▸  พื้นที่  ·  ${TMF[MONTH]} ${YEAR}`); r++;
+    headerRow(sh, r, ['พื้นที่','จำนวน DP','PA','Act','% Act','เฉลี่ย/สาขา','']); r++;
+    const bkkAll = ALL.filter(d=>d.phak==='กทม.'), upcAll = ALL.filter(d=>d.phak!=='กทม.');
+    const bkkAct = ACTIVE.filter(d=>d.phak==='กทม.'), upcAct = ACTIVE.filter(d=>d.phak!=='กทม.');
+    [['กทม.',bkkAll,bkkAct,false], ['ตจว.',upcAll,upcAct,false], ['รวม',ALL,ACTIVE,true]].forEach(([label2,itemsAll,itemsAct,isTotal])=>{
+      const n = itemsAct.length, pa_v = sum(itemsAll,paT), act_v = sum(itemsAct,actT);
+      const pct = pa_v? (act_v-pa_v)/pa_v : 0, avg = n? act_v/n : 0;
+      const row = [label2, n, pa_v, act_v, pct, avg, ''];
+      if(isTotal) totalRow(sh, r, row, [null,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,null]);
+      else dataRow(sh, r, row, [null,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,null], {colors:[null,null,null,null,pctColor(pct),null,null]});
+      r++;
+    });
+    r++;
+
+    // Tier
+    subtitleRow(sh, r, 0, 6, `▸  Tier  ·  ${TMF[MONTH]} ${YEAR}`); r++;
+    headerRow(sh, r, ['ระดับรายได้','จำนวน DP','รายได้รวม','สัดส่วน%','','','']); r++;
+    const totalAct = sum(ACTIVE, actT);
+    const tiers = [['> 100,000', v=>v>100000], ['> 50,000', v=>v>50000&&v<=100000], ['< 50,000', v=>v<=50000]];
+    tiers.forEach(([label2, cond])=>{
+      const items = ACTIVE.filter(d=>cond(actT(d)));
+      const rev = sum(items, actT), share = totalAct? rev/totalAct : 0;
+      dataRow(sh, r, [label2, items.length, rev, share, '', '', ''], [null,FMT_INT,FMT_INT,FMT_PCT2,null,null,null]);
+      r++;
+    });
+    totalRow(sh, r, ['รวม', ACTIVE.length, totalAct, 1, '', '', ''], [null,FMT_INT,FMT_INT,FMT_PCT2,null,null,null]);
+
+    const ws = sheetToAOA(sh, [18,12,16,12,10,14,14]);
+    XLSX.utils.book_append_sheet(wb, ws, 'สรุป');
+  })();
+
+  /* ===================== Sheet 2: พื้นที่ ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 8, `ยอดขาย DP แยกพื้นที่ · ${TMF[MONTH]} ${YEAR}`, 13);
+    let r = 2;
+    ['t','ab','cc'].forEach(kind=>{
+      const label = kind==='t'?'AB+CC':kind.toUpperCase();
+      subtitleRow(sh, r, 0, 8, `▸  ${label}  ·  ${TMF[MONTH]} ${YEAR}`); r++;
+      headerRow(sh, r, ['พื้นที่','จำนวน DP','PA','Act','% Act','เฉลี่ย/สาขา','','','']); r++;
+      const bkkAll = ALL.filter(d=>d.phak==='กทม.'), upcAll = ALL.filter(d=>d.phak!=='กทม.');
+      const bkkAct = ACTIVE.filter(d=>d.phak==='กทม.'), upcAct = ACTIVE.filter(d=>d.phak!=='กทม.');
+      [['กทม.',bkkAll,bkkAct,false], ['ตจว.',upcAll,upcAct,false], ['รวม',ALL,ACTIVE,true]].forEach(([label2,itemsAll,itemsAct,isTotal])=>{
+        const n = itemsAct.length, pa_v = sum(itemsAll,KIND[kind].pa), act_v = sum(itemsAct,KIND[kind].act);
+        const pct = pa_v? (act_v-pa_v)/pa_v : 0, avg = n? act_v/n : 0;
+        const row = [label2, n, pa_v, act_v, pct, avg, '', '', ''];
+        if(isTotal) totalRow(sh, r, row, [null,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,null,null,null]);
+        else dataRow(sh, r, row, [null,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,null,null,null], {colors:[null,null,null,null,pctColor(pct),null,null,null,null]});
+        r++;
+      });
+      r++;
+    });
+    const ws = sheetToAOA(sh, [18,12,16,12,10,14,10,10,10]);
+    XLSX.utils.book_append_sheet(wb, ws, 'พื้นที่');
+  })();
+
+  /* ===================== Sheet 3: ภาค ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 9, `ยอดขาย DP แยกภาค · ${TMF[MONTH]} ${YEAR}`, 13);
+    subtitleRow(sh, 2, 0, 9, `▸  AB+CC  ·  ${TMF[MONTH]} ${YEAR}`);
+    headerRow(sh, 3, ['ภาค','PA AB','ACT AB','DIFF AB','PA CC','ACT CC','DIFF CC','PA Total','ACT Total','DIFF']);
+    let r = 4;
+    let totPaAb=0, totActAb=0, totPaCc=0, totActCc=0;
+    REGIONS.forEach(region=>{
+      const itemsAll = ALL.filter(d=>d.phak===region), itemsAct = ACTIVE.filter(d=>d.phak===region);
+      const pa_ab = sum(itemsAll,paAB), act_ab = sum(itemsAct,actAB);
+      const pa_cc = sum(itemsAll,paCC), act_cc = sum(itemsAct,actCC);
+      const pa_t = pa_ab+pa_cc, act_t = act_ab+act_cc;
+      dataRow(sh, r, [region, pa_ab, act_ab, act_ab-pa_ab, pa_cc, act_cc, act_cc-pa_cc, pa_t, act_t, act_t-pa_t], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT]);
+      totPaAb+=pa_ab; totActAb+=act_ab; totPaCc+=pa_cc; totActCc+=act_cc;
+      r++;
+    });
+    const totPaT = totPaAb+totPaCc, totActT = totActAb+totActCc;
+    totalRow(sh, r, ['Total', totPaAb, totActAb, totActAb-totPaAb, totPaCc, totActCc, totActCc-totPaCc, totPaT, totActT, totActT-totPaT], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT]);
+    const ws = sheetToAOA(sh, [14,14,14,14,14,14,14,14,14,14]);
+    XLSX.utils.book_append_sheet(wb, ws, 'ภาค');
+  })();
+
+  /* ===================== Sheet 4: ราย DC ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 9, `ยอดขาย DP ราย DC · ${TMF[MONTH]} ${YEAR}`, 13);
+    let r = 2;
+    REGIONS.forEach(region=>{
+      const itemsAll = ALL.filter(d=>d.phak===region);
+      if(!itemsAll.length) return;
+      subtitleRow(sh, r, 0, 9, `▸  ภาค${region}`); r++;
+      sh.merges.push({s:{r,c:1},e:{r,c:3}}, {s:{r,c:4},e:{r,c:6}}, {s:{r,c:7},e:{r,c:9}});
+      setCell(sh, r, 0, 'DC', {font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
+      setCell(sh, r, 1, 'AB', {font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
+      setCell(sh, r, 4, 'CC', {font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
+      setCell(sh, r, 7, 'รวม AB+CC', {font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
+      for(const c of [2,3,5,6,8,9]) setCell(sh, r, c, '', {fill:{fgColor:{rgb:LIGHTBLUE}}});
+      r++;
+      headerRow(sh, r, [null,'PA','ACT','DIFF','PA','ACT','DIFF','PA','ACT','DIFF']); r++;
+      const dcs = [...new Set(itemsAll.map(d=>d.dc))].sort();
+      let regPaAb=0, regActAb=0, regPaCc=0, regActCc=0;
+      dcs.forEach(dc=>{
+        const dcAll = itemsAll.filter(d=>d.dc===dc), dcAct = ACTIVE.filter(d=>d.dc===dc && d.phak===region);
+        const pa_ab=sum(dcAll,paAB), act_ab=sum(dcAct,actAB), pa_cc=sum(dcAll,paCC), act_cc=sum(dcAct,actCC);
+        const pa_t=pa_ab+pa_cc, act_t=act_ab+act_cc;
+        dataRow(sh, r, [dc, pa_ab, act_ab, act_ab-pa_ab, pa_cc, act_cc, act_cc-pa_cc, pa_t, act_t, act_t-pa_t], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT], {stripe:(r%2===0)});
+        regPaAb+=pa_ab; regActAb+=act_ab; regPaCc+=pa_cc; regActCc+=act_cc;
+        r++;
+      });
+      const regPaT = regPaAb+regPaCc, regActT = regActAb+regActCc;
+      totalRow(sh, r, ['Total', regPaAb, regActAb, regActAb-regPaAb, regPaCc, regActCc, regActCc-regPaCc, regPaT, regActT, regActT-regPaT], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT]);
+      r += 2;
+    });
+    const ws = sheetToAOA(sh, [22,12,12,12,12,12,12,12,12,12]);
+    XLSX.utils.book_append_sheet(wb, ws, 'ราย DC');
+  })();
+
+  /* ===================== Sheet 5: ราย Drop point ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 11, `ยอดขาย ราย Drop Point · ${TMF[MONTH]} ${YEAR}`, 11);
+    headerRow(sh, 1, ['DC','DP สาขา','ภาค','Status','ACT AB','บิล AB','ชิ้น AB','ACT CC','บิล CC','ชิ้น CC','ACT Total','PA']);
+    const sorted = [...ACTIVE].sort((a,b)=> actT(b)-actT(a));
+    sorted.forEach((d,i)=>{
+      const r = 2+i;
+      dataRow(sh, r, [d.dc, d.dp, d.phak, d.isNew?'ใหม่':'เก่า', actAB(d), billAB(d), pcsAB(d), actCC(d), billCC(d), pcsCC(d), actT(d), paT(d)],
+        [null,null,null,null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT], {stripe:(i%2===0)});
+    });
+    const ws = sheetToAOA(sh, [22,36,10,8,13,8,8,13,8,8,13,13]);
+    XLSX.utils.book_append_sheet(wb, ws, 'ราย Drop point');
+  })();
+
+  /* ===================== Sheet 6: Top 10 ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 5, `Top 10 สาขายอดสูงสุด · ${TMF[MONTH]} ${YEAR}`, 13);
+    let r = 2;
+    ['t','ab','cc'].forEach(kind=>{
+      const label = kind==='t'?'AB+CC':kind.toUpperCase();
+      subtitleRow(sh, r, 0, 5, `▸  ${label}`); r++;
+      headerRow(sh, r, ['ลำดับ','DC','DP สาขา','บิล','ชิ้น','บาท']); r++;
+      const pool = [...ACTIVE].sort((a,b)=> KIND[kind].act(b)-KIND[kind].act(a)).slice(0,10);
+      pool.forEach((d,i)=>{
+        const bill = kind==='t'?billT(d):kind==='ab'?billAB(d):billCC(d);
+        const pcs = kind==='t'?pcsT(d):kind==='ab'?pcsAB(d):pcsCC(d);
+        const act = KIND[kind].act(d);
+        dataRow(sh, r, [i+1, d.dc, d.dp, bill, pcs, act], [null,null,null,FMT_INT,FMT_INT,FMT_INT], {stripe:(i%2===0)});
+        r++;
+      });
+      r++;
+    });
+    const ws = sheetToAOA(sh, [6,22,38,10,10,16]);
+    XLSX.utils.book_append_sheet(wb, ws, 'Top 10');
+  })();
+
+  /* ===================== Sheet 7: สาขา < 1500 ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 5, `สาขายอด < 1,500 บาท · ${TMF[MONTH]} ${YEAR}`, 13);
+    let r = 2;
+    ['t','ab','cc'].forEach(kind=>{
+      const label = kind==='t'?'AB+CC':kind.toUpperCase();
+      const pool = ACTIVE.filter(d=> KIND[kind].act(d) > 0 && KIND[kind].act(d) < 1500).sort((a,b)=> KIND[kind].act(a)-KIND[kind].act(b));
+      subtitleRow(sh, r, 0, 5, `▸  ${label}  (${pool.length} สาขา)`); r++;
+      headerRow(sh, r, ['ลำดับ','DC','DP สาขา','บิล','ชิ้น','บาท']); r++;
+      pool.forEach((d,i)=>{
+        const bill = kind==='t'?billT(d):kind==='ab'?billAB(d):billCC(d);
+        const pcs = kind==='t'?pcsT(d):kind==='ab'?pcsAB(d):pcsCC(d);
+        const act = KIND[kind].act(d);
+        dataRow(sh, r, [i+1, d.dc, d.dp, bill, pcs, act], [null,null,null,FMT_INT,FMT_INT,FMT_INT], {stripe:(i%2===0)});
+        r++;
+      });
+      r++;
+    });
+    const ws = sheetToAOA(sh, [6,22,38,10,10,16]);
+    XLSX.utils.book_append_sheet(wb, ws, 'สาขา < 1500');
+  })();
+
+  /* ===================== Sheet 8: กทม. vs ตจว. ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 13, 'ยอดรายเดือน แยก กทม. กับ ตจว.', 13);
+    const monthsHdr = TM.slice(1).concat(['Total']);
+    let r = 2;
+    function monthActiveAll(m){ return ALL.filter(d=> ((d.act69_ab[m]||0)+(d.act69_cc[m]||0)) > 0); }
+    function monthVal(items, m, kind){
+      if(kind==='ab') return sum(items, d=> d.act69_ab[m]||0);
+      if(kind==='cc') return sum(items, d=> d.act69_cc[m]||0);
+      return sum(items, d=> (d.act69_ab[m]||0)+(d.act69_cc[m]||0));
+    }
+    ['t','ab','cc'].forEach(kind=>{
+      const label = kind==='t'?'AB+CC':kind.toUpperCase();
+      subtitleRow(sh, r, 0, 13, `▸  ${label}`); r++;
+      headerRow(sh, r, [label, ...monthsHdr]); r++;
+      function rowFor(filterFn){
+        const vals = [];
+        for(let m=0;m<12;m++){
+          if(m < MONTH){
+            const items = monthActiveAll(m).filter(filterFn);
+            vals.push(monthVal(items, m, kind));
+          } else vals.push(null);
+        }
+        const total = vals.reduce((s,v)=> s+(v||0), 0);
+        return [vals, total];
+      }
+      const rowsDef = [
+        ['ยอดรวม', d=>true, true],
+        ['DP เก่า', d=>!d.isNew, false],
+        ['  กทม.', d=>!d.isNew && d.phak==='กทม.', false],
+        ['  ตจว.', d=>!d.isNew && d.phak!=='กทม.', false],
+        ['DP ใหม่', d=>d.isNew, false],
+        ['  กทม.', d=>d.isNew && d.phak==='กทม.', false],
+        ['  ตจว.', d=>d.isNew && d.phak!=='กทม.', false],
+        ['รวม กทม.', d=>d.phak==='กทม.', true],
+        ['รวม ตจว.', d=>d.phak!=='กทม.', true],
+      ];
+      const fmts = [null].concat(Array(13).fill(FMT_INT));
+      rowsDef.forEach(([label2, filt, bold])=>{
+        const [vals, total] = rowFor(filt);
+        const row = [label2, ...vals, total];
+        if(bold) totalRow(sh, r, row, fmts);
+        else dataRow(sh, r, row, fmts, {indent:1, bold});
+        r++;
+      });
+      r++;
+      const paRow = ['PA'];
+      for(let m=0;m<12;m++){
+        if(kind==='t') paRow.push(sum(ALL, d=>(d.pa_ab[m]||0)+(d.pa_cc[m]||0)));
+        else if(kind==='ab') paRow.push(sum(ALL, d=>d.pa_ab[m]||0));
+        else paRow.push(sum(ALL, d=>d.pa_cc[m]||0));
+      }
+      paRow.push(paRow.slice(1).reduce((s,v)=>s+(v||0),0));
+      dataRow(sh, r, paRow, fmts, {bold:true}); r++;
+      const pctRow = ['% ACT/PA'];
+      const [actTotalVals] = rowFor(d=>true);
+      for(let m=0;m<12;m++){
+        const pa_m = paRow[m+1], act_m = actTotalVals[m];
+        pctRow.push((pa_m && act_m!==null) ? act_m/pa_m : null);
+      }
+      pctRow.push(null);
+      dataRow(sh, r, pctRow, [null].concat(Array(13).fill(FMT_PCT1)), {bold:true});
+      r += 3;
+    });
+    const ws = sheetToAOA(sh, [10,12,12,12,12,12,12,12,12,12,12,12,12,12]);
+    XLSX.utils.book_append_sheet(wb, ws, 'กทม. vs ตจว.');
+  })();
+
+  /* ===================== Sheet 9: ยอดขายสะสม ===================== */
+  (function(){
+    const sh = mkSheet();
+    titleRow(sh, 0, 0, 6, `ยอดขายสะสม ${YEAR}`, 13);
+    let r = 2;
+    ['t','ab','cc'].forEach(kind=>{
+      const label = kind==='t'?'AB+CC':kind.toUpperCase();
+      subtitleRow(sh, r, 0, 6, `▸  ${label}`); r++;
+      headerRow(sh, r, [label,'ยอดขาย กทม.','ยอดขาย ตจว.','PA','Act','% Act','Diff (฿)']); r++;
+      const paByMonth = [];
+      for(let m=0;m<12;m++){
+        if(kind==='t') paByMonth.push(sum(ALL, d=>(d.pa_ab[m]||0)+(d.pa_cc[m]||0)));
+        else if(kind==='ab') paByMonth.push(sum(ALL, d=>d.pa_ab[m]||0));
+        else paByMonth.push(sum(ALL, d=>d.pa_cc[m]||0));
+      }
+      let totBkk=0, totUpc=0, totPa=0, totAct=0;
+      for(let m=0;m<12;m++){
+        if(m < MONTH){
+          const mActive = ALL.filter(d=> ((d.act69_ab[m]||0)+(d.act69_cc[m]||0)) > 0);
+          const mval = items => kind==='ab'? sum(items,d=>d.act69_ab[m]||0) : kind==='cc'? sum(items,d=>d.act69_cc[m]||0) : sum(items,d=>(d.act69_ab[m]||0)+(d.act69_cc[m]||0));
+          const bkk_v = mval(mActive.filter(d=>d.phak==='กทม.'));
+          const upc_v = mval(mActive.filter(d=>d.phak!=='กทม.'));
+          const act_v = bkk_v+upc_v, pa_v = paByMonth[m];
+          const pct = pa_v? act_v/pa_v : 0;
+          dataRow(sh, r, [TM[m+1], bkk_v, upc_v, pa_v, act_v, pct, act_v-pa_v], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT]);
+          totBkk+=bkk_v; totUpc+=upc_v; totPa+=pa_v; totAct+=act_v;
+        } else {
+          dataRow(sh, r, [TM[m+1], null, null, paByMonth[m], null, null, null], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT]);
+          totPa += paByMonth[m];
+        }
+        r++;
+      }
+      const totPct = totPa? totAct/totPa : 0;
+      totalRow(sh, r, ['Total', totBkk, totUpc, totPa, totAct, totPct, totAct-totPa], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT]);
+      r += 3;
+    });
+    const ws = sheetToAOA(sh, [10,16,16,16,16,10,16]);
+    XLSX.utils.book_append_sheet(wb, ws, 'ยอดขายสะสม');
+  })();
+
+  XLSX.writeFile(wb, `NiM_KPI_${TMF[MONTH]}_${YEAR}.xlsx`);
+}
+
 window.DPData={
   loadDataset,TM,TMF,
   get LATEST_MONTH(){return LATEST_MONTH;},
@@ -1266,6 +1746,7 @@ const App = {
       item(I.pdf,'Export PDF','exportPDF()')+
       item(I.img,'Export ภาพ (JPG)','exportPNG()')+
       '<div class="pop-sep"></div>'+
+      item(I.xls,'Export Excel (.xlsx)','exportXLSX()')+
       item(I.xls,'Export Excel (CSV)','exportCSV()')+
       item(I.ppt,'Export PowerPoint','exportNote()');
   },
@@ -1303,6 +1784,18 @@ const App = {
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     a.download=`DropPoint_${TM[this.selMonth]}${this.selYear}.csv`; a.click();
     this.toast('ดาวน์โหลด CSV แล้ว');
+  },
+  exportXLSX(){
+    this.closeAll();
+    if(!this.D){ this.toast('ไม่มีข้อมูลให้ export'); return; }
+    const doExport = () => { try { buildKpiWorkbook(this.selMonth, this.selYear); this.toast('ดาวน์โหลด Excel (.xlsx) สำเร็จ ✅'); } catch(e){ console.error(e); this.toast('เกิดข้อผิดพลาด: '+e.message); } };
+    if (typeof XLSX !== 'undefined' && XLSX.utils && XLSX.utils.book_new) { doExport(); return; }
+    this.toast('กำลังโหลด library…');
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
+    s.onload = doExport;
+    s.onerror = () => this.toast('โหลด library ไม่ได้ — ตรวจสอบอินเทอร์เน็ต');
+    document.head.appendChild(s);
   },
   exportNote(){ this.closeAll(); this.toast('PowerPoint export — เชื่อมต่อ backend เพื่อใช้งานจริง'); },
 
