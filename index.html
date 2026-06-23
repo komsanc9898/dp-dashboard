@@ -1746,9 +1746,7 @@ const App = {
       item(I.pdf,'Export PDF','exportPDF()')+
       item(I.img,'Export ภาพ (JPG)','exportPNG()')+
       '<div class="pop-sep"></div>'+
-      item(I.xls,'Export Excel (.xlsx)','exportXLSX()')+
-      item(I.xls,'Export Excel (CSV)','exportCSV()')+
-      item(I.ppt,'Export PowerPoint','exportNote()');
+      item(I.xls,'Export Excel (.xlsx)','exportXLSX()');
   },
   exportPDF(){ this.closeAll(); window.print(); },
   exportPNG(){
