@@ -817,6 +817,8 @@ function buildTrend(){
   const BLUE='#2563eb';
   const r=a69.map((v,i)=>v==null?0:(i===selIdx?8:3));
   const bg=a69.map((v,i)=>i===selIdx?'#facc15':BLUE);
+  const bd=a69.map((v,i)=>i===selIdx?BLUE:BLUE);
+  const bw=a69.map((v,i)=>i===selIdx?3:0);
   if(App.charts.trend){ try{App.charts.trend.destroy();}catch(e){} }
   const trendEl=document.getElementById('trendChart'); if(!trendEl) return;
   const exT=Chart.getChart(trendEl); if(exT) exT.destroy();
@@ -826,7 +828,7 @@ function buildTrend(){
     data:{labels:TM.slice(1),datasets:[
       {label:'ACT 68',data:a68,borderColor:'#22c55e',borderWidth:2.2,pointRadius:2.5,pointBackgroundColor:'#22c55e',tension:.4,spanGaps:false},
       {label:'PLAN 69',data:p69,borderColor:'#ef4444',borderDash:[5,4],borderWidth:2,pointRadius:2.5,pointBackgroundColor:'#ef4444',tension:.4},
-      {label:'ACT 69',data:a69,borderColor:BLUE,borderWidth:2.5,pointRadius:r,pointBackgroundColor:bg,pointBorderColor:bg,tension:.4,spanGaps:false,fill:{target:'origin',above:'rgba(37,99,235,0.07)'}},
+      {label:'ACT 69',data:a69,borderColor:BLUE,borderWidth:2.5,pointRadius:r,pointBackgroundColor:bg,pointBorderColor:bd,pointBorderWidth:bw,tension:.4,spanGaps:false,fill:{target:'origin',above:'rgba(37,99,235,0.07)'}},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       plugins:{legend:{display:false},datalabels:{display:false},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y??'-')+'M'}}},
