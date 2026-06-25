@@ -282,16 +282,16 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .chip.neu{background:var(--surface-2);color:var(--text-2);}
 
 /* hero */
-.hero{position:relative;overflow:hidden;border-radius:var(--radius);background:var(--hero-grad);color:#fff;padding:clamp(20px,3vw,30px);box-shadow:var(--shadow-md);}
+.hero{position:relative;overflow:hidden;border-radius:var(--radius);background:var(--hero-grad);color:#fff;padding:clamp(14px,2vw,20px);box-shadow:var(--shadow-md);}
 .hero::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 140% at 100% 0,rgba(255,255,255,.18),transparent 55%);pointer-events:none;}
-.hero-grid{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:center;position:relative;z-index:1;}
-.hero-eyebrow{font-size:12px;font-weight:600;letter-spacing:.5px;opacity:.85;text-transform:uppercase;}
-.hero h2{font-size:clamp(18px,2.4vw,22px);font-weight:700;margin-top:6px;letter-spacing:-.3px;}
-.hero-meta{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap;}
-.hero-tag{background:rgba(255,255,255,.16);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.22);padding:5px 11px;border-radius:999px;font-size:12.5px;font-weight:500;}
+.hero-grid{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;position:relative;z-index:1;}
+.hero-eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.5px;opacity:.85;text-transform:uppercase;}
+.hero h2{font-size:clamp(15px,2vw,18px);font-weight:700;margin-top:4px;letter-spacing:-.3px;}
+.hero-meta{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
+.hero-tag{background:rgba(255,255,255,.16);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,.22);padding:3px 9px;border-radius:999px;font-size:11px;font-weight:500;}
 .hero-num{text-align:right;}
-.hero-num .hn-val{font-size:clamp(34px,5vw,46px);font-weight:700;letter-spacing:-1.5px;line-height:1;font-variant-numeric:tabular-nums;}
-.hero-num .hn-lbl{font-size:12.5px;opacity:.85;margin-top:6px;}
+.hero-num .hn-val{font-size:clamp(24px,3.6vw,32px);font-weight:700;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums;}
+.hero-num .hn-lbl{font-size:11px;opacity:.85;margin-top:4px;}
 
 /* KPI cards */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(12px,1.6vw,16px);}
