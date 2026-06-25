@@ -7,8 +7,58 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script>
+/* ============ RESILIENT CDN LOADER ============
+   Loads Chart.js (+ datalabels plugin) with fallback mirrors and retries,
+   so a single blocked/slow CDN host doesn't break the whole dashboard.
+   Exposes window.__libsReady (a Promise) that the app code awaits before
+   touching `Chart` at all — see the guarded init block further down. */
+(function(){
+  const SOURCES = {
+    chart: [
+      'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js',
+      'https://unpkg.com/chart.js@4.4.1/dist/chart.umd.min.js'
+    ],
+    datalabels: [
+      'https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js',
+      'https://unpkg.com/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js'
+    ]
+  };
+
+  function loadOne(url, timeoutMs){
+    return new Promise((resolve, reject)=>{
+      const s = document.createElement('script');
+      let done = false;
+      const timer = setTimeout(()=>{ if(!done){ done=true; s.remove(); reject(new Error('timeout: '+url)); } }, timeoutMs);
+      s.src = url;
+      s.onload = ()=>{ if(!done){ done=true; clearTimeout(timer); resolve(); } };
+      s.onerror = ()=>{ if(!done){ done=true; clearTimeout(timer); s.remove(); reject(new Error('load error: '+url)); } };
+      document.head.appendChild(s);
+    });
+  }
+
+  // Try each mirror in order; each mirror gets 1 retry before moving to the next.
+  async function loadWithFallback(urls, timeoutMs){
+    let lastErr;
+    for(const url of urls){
+      for(let attempt=0; attempt<2; attempt++){
+        try{ await loadOne(url, timeoutMs); return url; }
+        catch(e){ lastErr = e; }
+      }
+    }
+    throw lastErr || new Error('all mirrors failed');
+  }
+
+  window.__libsReady = (async function(){
+    await loadWithFallback(SOURCES.chart, 8000);
+    // datalabels plugin is optional/nice-to-have — don't fail the whole app if it can't load
+    try{ await loadWithFallback(SOURCES.datalabels, 8000); }
+    catch(e){ console.warn('chartjs-plugin-datalabels failed to load from all mirrors; continuing without it.', e); }
+  })();
+})();
+</script>
 <style>
 /* ============ DESIGN TOKENS ============ */
 :root{
@@ -692,14 +742,28 @@ function shExtractId(s){
 let _shLoaded=false, _shPromise=null, _shForceEmbedded=false;
 
 function shEnsureXLSX(){
-  return new Promise((res,rej)=>{
-    if(window.XLSX && XLSX.read) return res();
+  if(window.XLSX && XLSX.read) return Promise.resolve();
+  const MIRRORS = [
+    'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
+    'https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/xlsx-js-style/1.2.0/xlsx.bundle.js'
+  ];
+  const loadOne = url => new Promise((res,rej)=>{
     const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js';
-    s.onload=()=>res();
-    s.onerror=()=>rej(new Error('โหลดไลบรารีอ่านสเปรดชีตไม่ได้ — ตรวจสอบอินเทอร์เน็ต'));
+    const timer=setTimeout(()=>{ s.remove(); rej(new Error('timeout')); }, 8000);
+    s.src=url;
+    s.onload=()=>{ clearTimeout(timer); res(); };
+    s.onerror=()=>{ clearTimeout(timer); s.remove(); rej(new Error('load error')); };
     document.head.appendChild(s);
   });
+  return (async()=>{
+    let lastErr;
+    for(const url of MIRRORS){
+      try{ await loadOne(url); if(window.XLSX && XLSX.read) return; }
+      catch(e){ lastErr=e; }
+    }
+    throw new Error('โหลดไลบรารีอ่านสเปรดชีตไม่ได้จากทุกแหล่ง — ตรวจสอบอินเทอร์เน็ตหรือการบล็อก CDN');
+  })();
 }
 async function shFetchWb(id){
   const url='https://docs.google.com/spreadsheets/d/'+id+'/export?format=xlsx';
@@ -1534,7 +1598,7 @@ function overview(){
   })(0);
 }
 
-Chart.defaults.color = '#000';
+if(window.Chart){ Chart.defaults.color = '#000'; }
 function buildTrend(){
   const D=App.D, t=D.trend;
   const toM = o => Object.keys(o).map(k=>o[k]==null?null:+(o[k]/1e6).toFixed(2));
@@ -1930,6 +1994,19 @@ const App = {
     this.buildNav(); this.buildTabbar(); this.buildThemePop(); this.buildExportPop(); this.buildSheetPop();
     document.addEventListener('keydown', e=>{ if(e.key==='Escape') this.closeAll(); });
     window.addEventListener('resize', ()=>{ if(this.page==='overview'){ this.charts.trend&&this.charts.trend.resize(); this.charts.donut&&this.charts.donut.resize(); } });
+
+    // Wait for Chart.js (loaded via fallback-mirror loader in <head>) before doing anything
+    // that touches `Chart`. If every mirror failed (e.g. all CDNs blocked on this network),
+    // show a clear, actionable message instead of letting the app crash with a cryptic error.
+    this.host.innerHTML='<div class="center-state"><div class="spinner"></div><p>กำลังโหลดไลบรารีกราฟ…</p></div>';
+    try{
+      if(window.__libsReady) await window.__libsReady;
+      if(!window.Chart) throw new Error('โหลดไลบรารีกราฟ (Chart.js) ไม่สำเร็จจากทุกแหล่ง — ตรวจสอบการเชื่อมต่ออินเทอร์เน็ตหรือการบล็อก CDN ของเครือข่ายนี้');
+    }catch(e){
+      this.host.innerHTML=`<div class="center-state"><div class="empty-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg></div><h3>โหลดไลบรารีกราฟไม่สำเร็จ</h3><p>${e.message||e}</p><button class="ctrl ctrl-accent" onclick="location.reload()">ลองใหม่</button></div>`;
+      return;
+    }
+
     await this.load(true);
   },
 
