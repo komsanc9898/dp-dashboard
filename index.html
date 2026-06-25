@@ -1835,7 +1835,13 @@ function dpNewRateTable(){
   // snapshot if the sheet can't be reached, exactly like the rest of the dashboard.
   const D = DP_NEW_RATE_LIVE;
   const TMA = TM.slice(1);
-  const lastMonth = App.selMonth;
+  // This table tracks its own latest month based on what's actually present in the
+  // "DP เปิดใหม่" sheet — it must NOT be capped by App.selMonth/LATEST_MONTH, which
+  // reflect the separate monthly-revenue sheets and can lag behind (or run ahead of)
+  // this sheet's own data.
+  let lastMonth = 0;
+  for(let i=0;i<12;i++){ if(D.pa[i]!=null || D.act_ab[i]!=null || D.act_cc[i]!=null) lastMonth = i+1; }
+  if(lastMonth===0) lastMonth = Math.min(App.selMonth, 5); // nothing parsed at all — show nothing rather than guess
   const dash = v => v===null||v===undefined ? '-' : fmt(v);
   const rows = [];
   let sumPa=0, sumAb=0, sumCc=0, hasAny=false;
@@ -1865,7 +1871,7 @@ function dpNewRateTable(){
     <div class="tbl-card">
       <div class="tbl-head" style="justify-content:space-between">
         <h3>อัตราการเปิด Drop Point ใหม่ เทียบ PA</h3>
-        <span class="muted" style="font-size:12px">ม.ค. – ${TMF[App.selMonth]} ${App.selYear}</span>
+        <span class="muted" style="font-size:12px">ม.ค. – ${TMF[lastMonth]} ${App.selYear}</span>
       </div>
       <div class="tbl-scroll"><table>
         <thead><tr>
