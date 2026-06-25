@@ -1794,27 +1794,49 @@ function yearlyTables(){
 
 /* ============ DP เปิดใหม่ เทียบ PA ============ */
 function dpNewRateTable(){
-  const D = DP_NEW_RATE;
+  // Derived live from DP_MASTER (synced from Google Sheet) instead of a frozen snapshot,
+  // so newly-added months (e.g. มิ.ย. onwards) show up automatically without re-exporting.
+  const ALL = App.D && App.D._master || DP_MASTER;
+  const newBranches = ALL.filter(d => d.isNew);
   const TMA = TM.slice(1);
-  const lastMonth = App.selMonth; // แสดงถึงเดือนที่เลือกบน dashboard
+  const lastMonth = App.selMonth;
   const dash = v => v===null||v===undefined ? '-' : fmt(v);
+
+  // For each new branch, find the first month its AB or CC actuals turn nonzero —
+  // that's the month it actually went live. PA target: count of branches whose
+  // planned (pa_ab/pa_cc) figure newly turns nonzero that month (always 9/mo by design).
+  function firstActiveMonth(arr){
+    for(let i=0;i<12;i++){ if((arr[i]||0) > 0) return i+1; }
+    return null;
+  }
+  const planFirstMonth = new Map(), actFirstMonth = new Map(), actCat = new Map();
+  newBranches.forEach(d=>{
+    const pm = firstActiveMonth(d.pa_ab) || firstActiveMonth(d.pa_cc);
+    if(pm) planFirstMonth.set(d, pm);
+    const abM = firstActiveMonth(d.act69_ab), ccM = firstActiveMonth(d.act69_cc);
+    let am=null, cat=null;
+    if(abM && ccM){ am = Math.min(abM,ccM); cat = abM<=ccM ? 'ab':'cc'; }
+    else if(abM){ am=abM; cat='ab'; }
+    else if(ccM){ am=ccM; cat='cc'; }
+    if(am){ actFirstMonth.set(d, am); actCat.set(d, cat); }
+  });
+
   const rows = [];
   let sumPa=0, sumAb=0, sumCc=0, hasAny=false;
   for(let m=1; m<=lastMonth; m++){
     const i = m-1;
-    const pa = D.pa[i], ab = D.act_ab[i], cc = D.act_cc[i];
-    const td = D.test_drive[i], up = D.up_cc[i];
-    if(pa==null || ab==null || cc==null){
-      rows.push(`<tr><td>${TMA[i]}</td><td>${dash(pa)}</td><td>${dash(ab)}</td><td>${dash(cc)}</td><td>${dash(null)}</td><td colspan="2">${dash(null)}</td><td>${dash(td)}</td><td>${dash(up)}</td></tr>`);
-      continue;
-    }
-    hasAny = true;
+    const pa = 9; // standing target: 9 new Drop Points planned per month
+    let ab=0, cc=0;
+    newBranches.forEach(d=>{
+      if(actFirstMonth.get(d)===m){ if(actCat.get(d)==='ab') ab++; else cc++; }
+    });
     const total = ab+cc, diff = total-pa, pct = pa? Math.round(total/pa*100) : 0;
+    hasAny = true;
     sumPa+=pa; sumAb+=ab; sumCc+=cc;
     rows.push(`<tr><td>${TMA[i]}</td><td>${fmt(pa)}</td><td>${fmt(ab)}</td><td>${fmt(cc)}</td><td>${fmt(total)}</td>
       <td class="${diff>=0?'pos':'neg'}">${diff>=0?'+':''}${fmt(diff)}</td>
       <td class="${pct>=100?'pos':'neg'}">${pct}%</td>
-      <td>${dash(td)}</td><td>${dash(up)}</td></tr>`);
+      <td>${dash(null)}</td><td>${dash(null)}</td></tr>`);
   }
   if(!hasAny) return '';
   const sumTotal = sumAb+sumCc, sumDiff = sumTotal-sumPa, sumPct = sumPa? Math.round(sumTotal/sumPa*1000)/10 : 0;
