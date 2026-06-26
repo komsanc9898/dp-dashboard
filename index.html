@@ -1934,10 +1934,10 @@ function buildDpNewRateChart(){
         tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${item.raw.y}`}}},
       scales:{
         x:{type:'linear',min:-0.5,max:months.length-0.5,
-          ticks:{stepSize:1,color:'#000',font:{size:12},callback:v=>months[v]??''},
+          ticks:{stepSize:1,color:'#000',font:{size:13,weight:'700'},callback:v=>months[v]??''},
           grid:{display:false},border:{display:false}},
         y:{min:0,max:maxVal,
-          ticks:{color:'#000',font:{size:12}},
+          ticks:{color:'#000',font:{size:13,weight:'700'}},
           grid:{color:cssv('--chart-grid')},border:{display:false}}
       }}
   });
