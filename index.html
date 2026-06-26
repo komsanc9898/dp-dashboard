@@ -1883,21 +1883,38 @@ function buildDpNewRateChart(){
   if(App.charts.dpNewRate){ try{App.charts.dpNewRate.destroy();}catch(e){} }
   const el=document.getElementById('dpNewRateChartEl'); if(!el) return;
   const exC=Chart.getChart(el); if(exC) exC.destroy();
-  const RED='#e34948', BLUE='#2a78d6';
+  const RED='#e34948', BLUE='#2a78d6', BLUE_LIGHT='#6fa8e0', STEM='#f3c9c8';
+  const selIdx=App.selMonth-1;
   const maxVal=Math.max(...pa.filter(v=>v!=null),...act.filter(v=>v!=null),9)+4;
+  const actColors=months.map((m,i)=>i===selIdx?BLUE_LIGHT:BLUE);
 
-  const lollipopLine={
-    id:'lollipopLine',
+  const lollipopStem={
+    id:'lollipopStem',
     beforeDatasetsDraw(chart){
+      const {ctx}=chart;
+      const meta=chart.getDatasetMeta(0); // PA only
+      meta.data.forEach((point,pi)=>{
+        if(pa[pi]==null) return;
+        const x=point.x, yZero=chart.scales.y.getPixelForValue(0);
+        ctx.save();
+        ctx.strokeStyle=STEM; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.moveTo(x,yZero); ctx.lineTo(x,point.y); ctx.stroke();
+        ctx.restore();
+      });
+    }
+  };
+  const pointLabels={
+    id:'pointLabels',
+    afterDatasetsDraw(chart){
       const {ctx}=chart;
       chart.data.datasets.forEach((ds,di)=>{
         const meta=chart.getDatasetMeta(di);
         meta.data.forEach((point,pi)=>{
           if(ds.data[pi]==null) return;
-          const x=point.x, yZero=chart.scales.y.getPixelForValue(0);
           ctx.save();
-          ctx.strokeStyle=ds.borderColor; ctx.lineWidth=di===0?2:6; ctx.globalAlpha=di===0?0.55:1;
-          ctx.beginPath(); ctx.moveTo(x,yZero); ctx.lineTo(x,point.y); ctx.stroke();
+          ctx.fillStyle='#fff'; ctx.font='700 12px '+(cssv('--font')||'sans-serif');
+          ctx.textAlign='center'; ctx.textBaseline='middle';
+          ctx.fillText(String(ds.data[pi].y), point.x, point.y+0.5);
           ctx.restore();
         });
       });
@@ -1906,10 +1923,10 @@ function buildDpNewRateChart(){
 
   App.charts.dpNewRate=new Chart(el,{
     type:'scatter',
-    plugins:[lollipopLine],
+    plugins:[lollipopStem,pointLabels],
     data:{datasets:[
       {label:'PA',data:months.map((m,i)=>pa[i]==null?null:{x:i,y:pa[i]}),backgroundColor:RED,borderColor:RED,pointRadius:13,pointHoverRadius:13},
-      {label:'Act',data:months.map((m,i)=>act[i]==null?null:{x:i,y:act[i]}),backgroundColor:BLUE,borderColor:BLUE,pointRadius:13,pointHoverRadius:13},
+      {label:'Act',data:months.map((m,i)=>act[i]==null?null:{x:i,y:act[i]}),backgroundColor:actColors,borderColor:actColors,pointRadius:13,pointHoverRadius:13},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       layout:{padding:{top:8,bottom:2}},
