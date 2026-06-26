@@ -722,6 +722,16 @@ function buildData(month,year){
     top10:sorted.slice(0,10),
     low_dp:[...allDp].filter(d=>d.baht<150000&&d.baht>0).sort((a,b)=>a.baht-b.baht).slice(0,20),
     all_dp:sorted,
+    // ---- diagnostics: DP that did NOT contribute to this month's "DP เก่า" Act68/Act69 ----
+    // (i.e. DP flagged isNew=true, shown separately as "DP ใหม่" and excluded from the
+    // เก่า totals) — surfaced so it's visible which branches are excluded and why.
+    excluded_from_old:DP_MASTER.filter(d=>d.isNew).map(d=>({
+      dc:d.dc, dp:d.dp, phak:d.phak,
+      pa:(d.pa_ab[month-1]||0)+(d.pa_cc[month-1]||0),
+      act69:(d.act69_ab[month-1]||0)+(d.act69_cc[month-1]||0),
+      act68:(d.act68_ab[month-1]||0)+(d.act68_cc[month-1]||0),
+    })).sort((a,b)=>b.pa-a.pa),
+    unmatched_actual_dp:DP_MASTER._unmatchedActualDp||[],
   };
 }
 
@@ -814,6 +824,8 @@ const z12 = ()=>[0,0,0,0,0,0,0,0,0,0,0,0];
 function shBuildMaster(paWb, actWb){
   const byKey = new Map();
   const dcRegion = new Map();
+  const unmatchedActualDp = new Map(); // key -> {dc, dp} for Actual-sheet rows that didn't
+    // already exist as a PA-sheet record at match time (see actWb loop below)
   function ensure(dc,dp,phak,isNew){
     const k = shKey(dc,dp);
     let o = byKey.get(k);
@@ -955,6 +967,11 @@ function shBuildMaster(paWb, actWb){
       if(!/drop/i.test(dp)) continue; // Drop Point rows only — exclude Shop / other channels
       const dc=String(r[cm.dpCol-1]==null?'':r[cm.dpCol-1]).trim();
       const bill=shNum(r[cm.billCol]), pcs=shNum(r[cm.pcsCol]), baht=shNum(r[cm.bahtCol]);
+      const k=shKey(dc,dp);
+      if(!byKey.has(k)) unmatchedActualDp.set(k,{dc,dp}); // no PA-sheet record matched this
+        // DP name — it will be created below with isNew=false (เก่า) as a default, since
+        // the Actual file carries no Status column to say otherwise. If this DP is really
+        // new, the PA-sheet name differs from this one; see _unmatchedActualDp on DP_MASTER.
       const o=ensure(dc, dp, dcRegion.get(shNormDC(dc))||'', false);
       const m=cls.mon;
       if(cls.yy===69){
@@ -971,6 +988,10 @@ function shBuildMaster(paWb, actWb){
   out.forEach(o=>{ if(!o.phak){ o.phak=dcRegion.get(shNormDC(o.dc))||'อื่นๆ'; } });
   out._dpNewRate = parseDpNewRate();
   out._dpOpenClose = parseDpOpenClose();
+  out._unmatchedActualDp = [...unmatchedActualDp.values()]; // DP names found only in the
+    // Actual file, never matched to a PA-sheet record — these have no isNew status from
+    // the source-of-truth (PA Status column) and default to "เก่า"; surfaced here so a
+    // naming mismatch between the two files can be spotted instead of silently misclassifying.
   return out;
 }
 
@@ -1820,6 +1841,7 @@ function kpi(){
     ${dpNewRateTable()}
     ${dpOpenCloseChart()}
     ${dpOpenCloseTable()}
+    ${excludedFromOldTable()}
     ${yodkaiSadomChart()}
     ${areaSummarySection()}
   </div>`;
@@ -2254,6 +2276,45 @@ function buildDpOpenCloseChart(){
           grid:{color:cssv('--chart-grid')},border:{display:true,color:'#000',width:1.5}}
       }}
   });
+}
+
+/* ============ รายชื่อ DP ที่ไม่ถูกรวมใน "DP เก่า" (Act 68/Act 69) — คือ DP ใหม่ ============ */
+function excludedFromOldTable(){
+  const D = App.D;
+  const list = D.excluded_from_old || [];
+  const unmatched = D.unmatched_actual_dp || [];
+  if(!list.length && !unmatched.length) return '';
+  const mn = TM[App.selMonth];
+  const row = d => `<tr>
+    <td>${d.dc}</td><td style="text-align:left">${d.dp}</td><td>${d.phak}</td>
+    <td>${fmt(d.pa)}</td>
+    <td class="${d.act69>0?'pos':'neg'}">${fmt(d.act69)}</td>
+    <td class="${d.act68>0?'pos':'neg'}">${fmt(d.act68)}</td>
+  </tr>`;
+  const unmatchedRow = u => `<tr><td>${u.dc}</td><td style="text-align:left">${u.dp}</td>
+    <td colspan="4" class="muted" style="text-align:left">พบใน Actual แต่ไม่ตรงชื่อกับ PA — ถูกนับเป็น "เก่า" โดยอัตโนมัติ (ตรวจสอบชื่อสาขา)</td></tr>`;
+  return `
+  <div class="section">
+    <div class="tbl-card">
+      <div class="tbl-head" style="justify-content:space-between">
+        <h3>สาขาที่ไม่ถูกรวมใน "DP เก่า" (= DP ใหม่)</h3>
+        <span class="muted" style="font-size:12px">${mn} ${App.selYear} · ${list.length} สาขา</span>
+      </div>
+      <div class="tbl-scroll"><table>
+        <thead><tr><th>DC</th><th style="text-align:left">DP</th><th>ภาค</th><th>PA</th><th>Act 69</th><th>Act 68</th></tr></thead>
+        <tbody>${list.length?list.map(row).join(''):'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-3)">ไม่มีสาขาที่เข้าเกณฑ์</td></tr>'}</tbody>
+      </table></div>
+      ${unmatched.length?`
+      <div class="tbl-head" style="justify-content:space-between;margin-top:14px">
+        <h3 style="font-size:13px">⚠ ชื่อสาขาใน Actual ที่จับคู่กับ PA ไม่ได้</h3>
+        <span class="muted" style="font-size:12px">${unmatched.length} รายการ</span>
+      </div>
+      <div class="tbl-scroll"><table>
+        <thead><tr><th>DC</th><th style="text-align:left">DP (จากไฟล์ Actual)</th><th colspan="4">หมายเหตุ</th></tr></thead>
+        <tbody>${unmatched.map(unmatchedRow).join('')}</tbody>
+      </table></div>`:''}
+    </div>
+  </div>`;
 }
 
 function dpOpenCloseTable(){
