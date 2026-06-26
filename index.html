@@ -1771,8 +1771,17 @@ function kpi(){
     </div>
 
     ${yearlyTables()}
+    ${dpNewRateChart()}
     ${dpNewRateTable()}
   </div>`;
+
+  (function buildWhenReady(tries){
+    const el=document.getElementById('dpNewRateChartEl');
+    if(!el) return;
+    if(el.parentElement && el.parentElement.clientWidth>20){
+      buildDpNewRateChart();
+    } else if(tries<40){ setTimeout(()=>buildWhenReady(tries+1),25); }
+  })(0);
 }
 
 function areaRow(name,dp,pa,act){const p=pa?Math.round(act/pa*100):0;return `<tr><td>${name}</td><td>${dp}</td><td>${fmt(pa)}</td><td>${fmt(act)}</td><td class="${act>=pa?'pos':'neg'}">${p}%</td><td>${dp?fmt(act/dp):0}</td></tr>`;}
@@ -1829,19 +1838,101 @@ function yearlyTables(){
 }
 
 /* ============ DP เปิดใหม่ เทียบ PA ============ */
+function dpNewRateLastMonth(D){
+  // The "DP เปิดใหม่" sheet tracks its own latest month — it must NOT be capped by
+  // App.selMonth/LATEST_MONTH, which reflect the separate monthly-revenue sheets and
+  // can lag behind (or run ahead of) this sheet's own data.
+  let lastMonth = 0;
+  for(let i=0;i<12;i++){ if(D.pa[i]!=null || D.act_ab[i]!=null || D.act_cc[i]!=null) lastMonth = i+1; }
+  if(lastMonth===0) lastMonth = Math.min(App.selMonth, 5); // nothing parsed at all — show nothing rather than guess
+  return lastMonth;
+}
+
+function dpNewRateChart(){
+  const D = DP_NEW_RATE_LIVE;
+  const lastMonth = dpNewRateLastMonth(D);
+  let hasAny=false;
+  for(let i=0;i<lastMonth;i++){ if(D.pa[i]!=null && D.act_ab[i]!=null && D.act_cc[i]!=null) hasAny=true; }
+  if(!hasAny) return '';
+  return `
+  <div class="section">
+    <div class="tbl-card" style="padding:18px 18px 8px;">
+      <div class="tbl-head" style="justify-content:space-between;padding:0 0 4px;border:none;">
+        <h3>อัตราการเปิด Drop Point ใหม่ เทียบ PA</h3>
+        <span class="muted" style="font-size:12px">ม.ค. – ${TMF[lastMonth]} ${App.selYear}</span>
+      </div>
+      <div class="chart-box" style="height:280px;margin-top:6px;"><canvas id="dpNewRateChartEl"></canvas></div>
+      <div style="display:flex;gap:16px;justify-content:center;margin:10px 0 4px;flex-wrap:wrap;">
+        <span style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:#000"><i style="width:10px;height:10px;border-radius:50%;background:#e34948;display:inline-block;flex-shrink:0"></i>PA (เป้า)</span>
+        <span style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:#000"><i style="width:10px;height:10px;border-radius:50%;background:#2a78d6;display:inline-block;flex-shrink:0"></i>Act (จริง)</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+function buildDpNewRateChart(){
+  const D = DP_NEW_RATE_LIVE;
+  const lastMonth = dpNewRateLastMonth(D);
+  const TMA = TM.slice(1);
+  const months = TMA.slice(0,lastMonth);
+  const pa = []; const act = [];
+  for(let i=0;i<lastMonth;i++){
+    pa.push(D.pa[i]==null?null:D.pa[i]);
+    act.push((D.act_ab[i]==null||D.act_cc[i]==null)?null:D.act_ab[i]+D.act_cc[i]);
+  }
+  if(App.charts.dpNewRate){ try{App.charts.dpNewRate.destroy();}catch(e){} }
+  const el=document.getElementById('dpNewRateChartEl'); if(!el) return;
+  const exC=Chart.getChart(el); if(exC) exC.destroy();
+  const RED='#e34948', BLUE='#2a78d6';
+  const maxVal=Math.max(...pa.filter(v=>v!=null),...act.filter(v=>v!=null),9)+4;
+
+  const lollipopLine={
+    id:'lollipopLine',
+    beforeDatasetsDraw(chart){
+      const {ctx}=chart;
+      chart.data.datasets.forEach((ds,di)=>{
+        const meta=chart.getDatasetMeta(di);
+        meta.data.forEach((point,pi)=>{
+          if(ds.data[pi]==null) return;
+          const x=point.x, yZero=chart.scales.y.getPixelForValue(0);
+          ctx.save();
+          ctx.strokeStyle=ds.borderColor; ctx.lineWidth=di===0?2:6; ctx.globalAlpha=di===0?0.55:1;
+          ctx.beginPath(); ctx.moveTo(x,yZero); ctx.lineTo(x,point.y); ctx.stroke();
+          ctx.restore();
+        });
+      });
+    }
+  };
+
+  App.charts.dpNewRate=new Chart(el,{
+    type:'scatter',
+    plugins:[lollipopLine],
+    data:{datasets:[
+      {label:'PA',data:months.map((m,i)=>pa[i]==null?null:{x:i,y:pa[i]}),backgroundColor:RED,borderColor:RED,pointRadius:13,pointHoverRadius:13},
+      {label:'Act',data:months.map((m,i)=>act[i]==null?null:{x:i,y:act[i]}),backgroundColor:BLUE,borderColor:BLUE,pointRadius:13,pointHoverRadius:13},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,
+      layout:{padding:{top:8,bottom:2}},
+      plugins:{legend:{display:false},datalabels:{display:false},
+        tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${item.raw.y}`}}},
+      scales:{
+        x:{type:'linear',min:-0.5,max:months.length-0.5,
+          ticks:{stepSize:1,color:'#000',font:{size:12},callback:v=>months[v]??''},
+          grid:{display:false},border:{display:false}},
+        y:{min:0,max:maxVal,
+          ticks:{color:'#000',font:{size:12}},
+          grid:{color:cssv('--chart-grid')},border:{display:false}}
+      }}
+  });
+}
+
 function dpNewRateTable(){
   // Read directly from the "DP เปิดใหม่" sheet (live-parsed into DP_NEW_RATE_LIVE on
   // every successful sheet load — see parseDpNewRate). Falls back to the embedded
   // snapshot if the sheet can't be reached, exactly like the rest of the dashboard.
   const D = DP_NEW_RATE_LIVE;
   const TMA = TM.slice(1);
-  // This table tracks its own latest month based on what's actually present in the
-  // "DP เปิดใหม่" sheet — it must NOT be capped by App.selMonth/LATEST_MONTH, which
-  // reflect the separate monthly-revenue sheets and can lag behind (or run ahead of)
-  // this sheet's own data.
-  let lastMonth = 0;
-  for(let i=0;i<12;i++){ if(D.pa[i]!=null || D.act_ab[i]!=null || D.act_cc[i]!=null) lastMonth = i+1; }
-  if(lastMonth===0) lastMonth = Math.min(App.selMonth, 5); // nothing parsed at all — show nothing rather than guess
+  const lastMonth = dpNewRateLastMonth(D);
   const dash = v => v===null||v===undefined ? '-' : fmt(v);
   const rows = [];
   let sumPa=0, sumAb=0, sumCc=0, hasAny=false;
