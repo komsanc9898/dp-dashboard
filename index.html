@@ -1820,6 +1820,7 @@ function kpi(){
     ${dpNewRateTable()}
     ${dpOpenCloseChart()}
     ${dpOpenCloseTable()}
+    ${yodkaiSadomChart()}
   </div>`;
 
   (function buildWhenReady(tries){
@@ -1836,6 +1837,14 @@ function kpi(){
     if(el.parentElement && el.parentElement.clientWidth>20){
       buildDpOpenCloseChart();
     } else if(tries<40){ setTimeout(()=>buildWhenReady2(tries+1),25); }
+  })(0);
+
+  (function buildWhenReady3(tries){
+    const el=document.getElementById('yks_t');
+    if(!el){ if(tries<40) setTimeout(()=>buildWhenReady3(tries+1),25); return; }
+    if(el.parentElement && el.parentElement.clientWidth>20){
+      buildYodkaiSadomCharts();
+    } else if(tries<40){ setTimeout(()=>buildWhenReady3(tries+1),25); }
   })(0);
 }
 
@@ -2274,6 +2283,133 @@ function dpOpenCloseTable(){
       </table></div>
     </div>
   </div>`;
+}
+
+/* ============ ยอดขายสะสม: AB+CC / AB / CC เทียบ PA, รายเดือน (ม.ค.–เดือนล่าสุด) ============ */
+// Same underlying aggregation as the "ยอดขายสะสม" sheet in the Excel export
+// (buildKpiWorkbook): PA = sum of pa_ab+pa_cc across every DP; Act = sum of
+// act69_ab+act69_cc, but only over DPs that actually sold something that month
+// (matches the original "Act_v"/"mActive" filter so this never double counts
+// branches that haven't reported data yet for a given month).
+function yodkaiSadomData(kind){ // kind: 't' | 'ab' | 'cc'
+  const ALL = DP_MASTER;
+  const lastMonth = LATEST_MONTH;
+  const pa=[], act=[], pct=[];
+  for(let m=0;m<lastMonth;m++){
+    const paV = kind==='t'
+      ? ALL.reduce((s,d)=>s+(d.pa_ab[m]||0)+(d.pa_cc[m]||0),0)
+      : ALL.reduce((s,d)=>s+(d['pa_'+kind][m]||0),0);
+    const activeDps = ALL.filter(d=>((d.act69_ab[m]||0)+(d.act69_cc[m]||0))>0);
+    const actV = kind==='t'
+      ? activeDps.reduce((s,d)=>s+(d.act69_ab[m]||0)+(d.act69_cc[m]||0),0)
+      : activeDps.reduce((s,d)=>s+(d['act69_'+kind][m]||0),0);
+    pa.push(paV); act.push(actV);
+    pct.push(paV? Math.round(actV/paV*1000)/10 : 0);
+  }
+  return {pa, act, pct, lastMonth};
+}
+
+function yodkaiSadomSection(kind, title){
+  const D = yodkaiSadomData(kind);
+  if(D.lastMonth<1) return '';
+  const TMA = TM.slice(1,D.lastMonth+1);
+  const elId = 'yks_'+kind;
+  const rows = TMA.map((m,i)=>{
+    const pctClass = D.pct[i]>=100?'pos':'neg';
+    return `<tr><td>${m}</td><td>${fmt(D.pa[i])}</td><td>${fmt(D.act[i])}</td><td class="${pctClass}">${D.pct[i]}%</td></tr>`;
+  }).join('');
+  const sumPa=D.pa.reduce((s,v)=>s+v,0), sumAct=D.act.reduce((s,v)=>s+v,0);
+  const sumPct = sumPa? Math.round(sumAct/sumPa*1000)/10 : 0;
+  const totalRow = `<tr class="total"><td>รวม</td><td>${fmt(sumPa)}</td><td>${fmt(sumAct)}</td><td class="${sumPct>=100?'pos':'neg'}">${sumPct}%</td></tr>`;
+  return `
+  <div class="section">
+    <div class="tbl-card" style="padding:22px;">
+      <h3 style="margin:0 0 14px;">${title} ${App.selYear}</h3>
+      <div class="two-col" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start;">
+        <div>
+          <div style="display:flex;gap:24px;justify-content:center;margin-bottom:8px;flex-wrap:wrap;">
+            <span style="display:flex;align-items:center;gap:7px;font-size:15px;font-weight:700;color:#e34948"><i style="width:12px;height:12px;border-radius:50%;border:3px solid #e34948;background:#fff;display:inline-block;flex-shrink:0"></i>PA</span>
+            <span style="display:flex;align-items:center;gap:7px;font-size:15px;font-weight:700;color:#2a78d6"><i style="width:12px;height:12px;border-radius:50%;border:3px solid #2a78d6;background:#fff;display:inline-block;flex-shrink:0"></i>Act</span>
+          </div>
+          <div class="chart-box" style="height:260px;"><canvas id="${elId}"></canvas></div>
+        </div>
+        <div>
+          <div class="tbl-head" style="justify-content:center;font-size:13px;font-weight:700;margin-bottom:6px;">${title} ${App.selYear} เทียบ PA</div>
+          <div class="tbl-scroll"><table>
+            <thead><tr><th>เดือน</th><th>PA</th><th>Act</th><th>% Act</th></tr></thead>
+            <tbody>${rows}${totalRow}</tbody>
+          </table></div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function yodkaiSadomChart(){
+  return yodkaiSadomSection('t','ยอดขาย DP สินค้า AB + CC')
+       + yodkaiSadomSection('ab','ยอดขาย DP สินค้า AB')
+       + yodkaiSadomSection('cc','ยอดขาย DP สินค้า CC');
+}
+
+function buildYodkaiSadomCharts(){
+  ['t','ab','cc'].forEach(kind=>{
+    const D = yodkaiSadomData(kind);
+    if(D.lastMonth<1) return;
+    const TMA = TM.slice(1,D.lastMonth+1);
+    const months = TMA;
+    const elId = 'yks_'+kind;
+    const el=document.getElementById(elId); if(!el) return;
+    const exC=Chart.getChart(el); if(exC) exC.destroy();
+    if(App.charts[elId]){ try{App.charts[elId].destroy();}catch(e){} }
+    const RED='#e34948', BLUE='#2a78d6';
+    const maxVal=Math.max(...D.pa,...D.act,1);
+    const minVal=Math.min(...D.pa,...D.act);
+
+    const hollowPoints={
+      id:'hollowPoints_'+elId,
+      afterDatasetsDraw(chart){
+        const {ctx}=chart;
+        chart.data.datasets.forEach((ds,di)=>{
+          const meta=chart.getDatasetMeta(di);
+          meta.data.forEach((point,pi)=>{
+            if(ds.data[pi]==null) return;
+            ctx.save();
+            ctx.fillStyle='#fff';
+            ctx.beginPath(); ctx.arc(point.x,point.y,4,0,2*Math.PI); ctx.fill();
+            ctx.strokeStyle=ds.borderColor; ctx.lineWidth=2;
+            ctx.beginPath(); ctx.arc(point.x,point.y,4,0,2*Math.PI); ctx.stroke();
+            ctx.fillStyle=ds.borderColor; ctx.font='700 10px '+(cssv('--font')||'sans-serif');
+            ctx.textAlign='center'; ctx.textBaseline=ds.label==='PA'?'bottom':'top';
+            const yOff=ds.label==='PA'?-7:7;
+            ctx.fillText((ds.data[pi].y/1e6).toFixed(1), point.x, point.y+yOff);
+            ctx.restore();
+          });
+        });
+      }
+    };
+
+    App.charts[elId]=new Chart(el,{
+      type:'line',
+      plugins:[hollowPoints],
+      data:{datasets:[
+        {label:'PA',data:months.map((m,i)=>({x:i,y:D.pa[i]})),borderColor:RED,backgroundColor:'#fff',pointRadius:0,borderWidth:2,borderDash:[6,4],tension:0},
+        {label:'Act',data:months.map((m,i)=>({x:i,y:D.act[i]})),borderColor:BLUE,backgroundColor:'#fff',pointRadius:0,borderWidth:2,tension:0},
+      ]},
+      options:{responsive:true,maintainAspectRatio:false,animation:false,
+        layout:{padding:{top:16,bottom:8,left:4,right:4}},
+        plugins:{legend:{display:false},datalabels:{display:false},
+          tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${fmt(item.raw.y)}`}}},
+        scales:{
+          x:{type:'linear',min:-0.3,max:months.length-0.7,
+            ticks:{stepSize:1,color:'#000',font:{size:11,weight:'700'},callback:v=>months[v]??''},
+            grid:{display:false},border:{display:true,color:'#000',width:1}},
+          y:{min:Math.floor(minVal*0.85/1e6)*1e6,max:Math.ceil(maxVal*1.15/1e6)*1e6,
+            ticks:{color:'#000',font:{size:10},callback:v=>(v/1e6).toFixed(0)},
+            grid:{color:cssv('--chart-grid')},border:{display:false},
+            title:{display:true,text:'Millions',font:{size:10,weight:'700'}}}
+        }}
+    });
+  });
 }
 
 
