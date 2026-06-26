@@ -1862,9 +1862,10 @@ function dpNewRateChart(){
         <h3 style="text-align:center;flex:2;margin:0;">อัตราการเปิด Drop Point ใหม่ เทียบ PA</h3>
         <div style="flex:1;text-align:right;"><span class="muted" style="font-size:12px">ม.ค. – ${TMF[lastMonth]} ${App.selYear}</span></div>
       </div>
-      <div style="display:flex;gap:24px;justify-content:center;margin:14px 0 8px;flex-wrap:wrap;">
-        <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:#000"><i style="width:11px;height:11px;border-radius:50%;background:#e34948;display:inline-block;flex-shrink:0"></i>PA</span>
-        <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:#000"><i style="width:11px;height:11px;border-radius:50%;background:#2a78d6;display:inline-block;flex-shrink:0"></i>Act</span>
+      <div style="text-align:center;font-size:15px;font-weight:600;color:#000;margin-top:10px;">อัตราการเปิด Drop Point ใหม่</div>
+      <div style="display:flex;gap:24px;justify-content:center;margin:10px 0 8px;flex-wrap:wrap;">
+        <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#e34948"><i style="width:11px;height:11px;border-radius:50%;background:#e34948;display:inline-block;flex-shrink:0"></i>PA</span>
+        <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#2a78d6"><i style="width:11px;height:11px;border-radius:50%;background:#2a78d6;display:inline-block;flex-shrink:0"></i>Act</span>
       </div>
       <div class="chart-box" style="height:360px;margin-top:6px;"><canvas id="dpNewRateChartEl"></canvas></div>
     </div>
@@ -1893,13 +1894,20 @@ function buildDpNewRateChart(){
     id:'lollipopStem',
     beforeDatasetsDraw(chart){
       const {ctx}=chart;
-      const meta=chart.getDatasetMeta(0); // PA only
-      meta.data.forEach((point,pi)=>{
+      const metaPa=chart.getDatasetMeta(0), metaAct=chart.getDatasetMeta(1);
+      const yZero=chart.scales.y.getPixelForValue(0);
+      metaAct.data.forEach((point,pi)=>{
+        if(act[pi]==null) return;
+        ctx.save();
+        ctx.strokeStyle=actColors[pi]; ctx.lineWidth=5;
+        ctx.beginPath(); ctx.moveTo(point.x,yZero); ctx.lineTo(point.x,point.y); ctx.stroke();
+        ctx.restore();
+      });
+      metaPa.data.forEach((point,pi)=>{
         if(pa[pi]==null) return;
-        const x=point.x, yZero=chart.scales.y.getPixelForValue(0);
         ctx.save();
         ctx.strokeStyle=STEM; ctx.lineWidth=3;
-        ctx.beginPath(); ctx.moveTo(x,yZero); ctx.lineTo(x,point.y); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(point.x,yZero); ctx.lineTo(point.x,point.y); ctx.stroke();
         ctx.restore();
       });
     }
@@ -1936,7 +1944,7 @@ function buildDpNewRateChart(){
       scales:{
         x:{type:'linear',min:-0.5,max:months.length-0.5,
           ticks:{stepSize:1,color:'#000',font:{size:13,weight:'700'},callback:v=>months[v]??''},
-          grid:{display:false},border:{display:false}},
+          grid:{display:false},border:{display:true,color:'#c3c2b7',width:1}},
         y:{min:0,max:Math.max(15,Math.ceil(maxVal/5)*5),
           ticks:{stepSize:5,color:'#000',font:{size:13,weight:'700'}},
           grid:{color:cssv('--chart-grid')},border:{display:false}}
