@@ -1821,7 +1821,6 @@ function kpi(){
     ${dpOpenCloseChart()}
     ${dpOpenCloseTable()}
     ${yodkaiSadomChart()}
-    ${areaSummarySection()}
   </div>`;
 
   (function buildWhenReady(tries){
@@ -2350,40 +2349,6 @@ function yodkaiSadomChart(){
   return yodkaiSadomSection('t','ยอดขาย DP สินค้า AB + CC')
        + yodkaiSadomSection('ab','ยอดขาย DP สินค้า AB')
        + yodkaiSadomSection('cc','ยอดขาย DP สินค้า CC');
-}
-
-/* ============ สรุปยอดขาย DP AB + CC แยกพื้นที่ กทม. และ ตจว. (standalone module) ============ */
-// Separate from the existing "พื้นที่" card — same underlying area totals (DP count,
-// PA, Act) already computed once per kpi() render, but with its own table (% Act =
-// (Act-PA)/PA, can be negative) and its own donut chart with leader-line % labels,
-// matching the reference layout exactly without touching the original area card.
-function areaSummarySection(){
-  const D=App.D, {area}=D;
-  const totDp=D.meta.dp_count.total;
-  const bkkA=area.bkk, upcA=area.upcountry, totAct=area.total;
-  const bkkDp=Math.round(totDp*(bkkA/(totAct||1))), upcDp=totDp-bkkDp;
-  const totPa=Math.round(D.current.pa_total.total);
-  const bkkPa=Math.round(totPa*(bkkA/(totAct||1))), upcPa=totPa-bkkPa;
-  const pctActDelta = (act,pa) => pa? Math.round((act-pa)/pa*10000)/100 : 0;
-  const row = (label,dp,pa,act) => {
-    const p=pctActDelta(act,pa);
-    return `<tr><td>${label}</td><td>${dp}</td><td>${fmt(pa)}</td><td>${fmt(act)}</td><td class="${p>=0?'pos':'neg'}">${p>=0?'+':''}${p}%</td><td>${dp?fmt(act/dp):0}</td></tr>`;
-  };
-  const totP = pctActDelta(totAct,totPa);
-  return `
-  <div class="section">
-    <div class="tbl-card" style="padding:22px;">
-      <h3 style="margin:0 0 2px;">สรุปยอดขาย DP AB + CC แยกพื้นที่ กทม. และ ตจว.</h3>
-      <div class="muted" style="font-size:13px;font-weight:600;color:#e34948;margin-bottom:14px;">${TMF[App.selMonth]} ${App.selYear}</div>
-      <div class="tbl-scroll"><table>
-        <thead><tr><th>พื้นที่</th><th>จำนวน DP</th><th>PA</th><th>Act</th><th>% Act</th><th>เฉลี่ย/สาขา</th></tr></thead>
-        <tbody>
-          ${row('กทม.',bkkDp,bkkPa,bkkA)}
-          ${row('ตจว.',upcDp,upcPa,upcA)}
-          <tr class="total"><td>รวม</td><td>${totDp}</td><td>${fmt(totPa)}</td><td>${fmt(totAct)}</td><td class="${totP>=0?'pos':'neg'}">${totP>=0?'+':''}${totP}%</td><td>${totDp?fmt(totAct/totDp):0}</td></tr>
-        </tbody></table></div>
-    </div>
-  </div>`;
 }
 
 function buildYodkaiSadomCharts(){
