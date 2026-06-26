@@ -1951,10 +1951,10 @@ function buildDpNewRateChart(){
       scales:{
         x:{type:'linear',min:-0.5,max:months.length-0.5,
           ticks:{stepSize:1,color:'#000',font:{size:13,weight:'700'},callback:v=>months[v]??''},
-          grid:{display:false},border:{display:true,color:'#c3c2b7',width:1}},
+          grid:{display:false},border:{display:true,color:'#000',width:1.5}},
         y:{min:0,max:Math.max(15,Math.ceil(maxVal/5)*5),
           ticks:{stepSize:5,color:'#000',font:{size:13,weight:'700'}},
-          grid:{color:cssv('--chart-grid')},border:{display:false}}
+          grid:{color:cssv('--chart-grid')},border:{display:true,color:'#000',width:1.5}}
       }}
   });
 }
