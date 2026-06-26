@@ -1874,7 +1874,7 @@ function dpNewRateChart(){
         <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#e34948"><i style="width:11px;height:11px;border-radius:50%;background:#e34948;display:inline-block;flex-shrink:0"></i>PA</span>
         <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#2a78d6"><i style="width:11px;height:11px;border-radius:50%;background:#2a78d6;display:inline-block;flex-shrink:0"></i>Act</span>
       </div>
-      <div class="chart-box" style="height:360px;margin-top:6px;"><canvas id="dpNewRateChartEl"></canvas></div>
+      <div class="chart-box" style="height:280px;margin-top:6px;"><canvas id="dpNewRateChartEl"></canvas></div>
     </div>
   </div>`;
 }
@@ -1937,39 +1937,20 @@ function buildDpNewRateChart(){
     }
   };
 
-  const xTickMarks={
-    id:'xTickMarks',
-    afterDraw(chart){
-      const {ctx,scales}=chart;
-      const xScale=scales.x, yScale=scales.y;
-      const yBase=yScale.getPixelForValue(yScale.min);
-      ctx.save();
-      ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
-      months.forEach((m,i)=>{
-        const xPix=xScale.getPixelForValue(i);
-        ctx.beginPath();
-        ctx.moveTo(xPix,yBase);
-        ctx.lineTo(xPix,yBase+6); // tick extends outside (below) the axis line
-        ctx.stroke();
-      });
-      ctx.restore();
-    }
-  };
-
   App.charts.dpNewRate=new Chart(el,{
     type:'scatter',
-    plugins:[lollipopStem,pointLabels,xTickMarks],
+    plugins:[lollipopStem,pointLabels],
     data:{datasets:[
       {label:'PA',data:months.map((m,i)=>pa[i]==null?null:{x:i,y:pa[i]}),backgroundColor:RED,borderColor:RED,pointRadius:15,pointHoverRadius:15},
       {label:'Act',data:months.map((m,i)=>act[i]==null?null:{x:i,y:act[i]}),backgroundColor:actColors,borderColor:actColors,pointRadius:15,pointHoverRadius:15},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
-      layout:{padding:{top:8,bottom:4}},
+      layout:{padding:{top:8,bottom:2}},
       plugins:{legend:{display:false},datalabels:{display:false},
         tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${item.raw.y}`}}},
       scales:{
         x:{type:'linear',min:-0.5,max:months.length-0.5,
-          ticks:{stepSize:1,color:'#000',font:{size:13,weight:'700'},callback:v=>months[v]??''},
+          ticks:{stepSize:1,color:'#000',font:{size:13,weight:'700'},padding:8,callback:v=>months[v]??''},
           grid:{display:false},border:{display:true,color:'#000',width:1.5}},
         y:{min:0,max:Math.max(15,Math.ceil(maxVal/5)*5),
           ticks:{stepSize:5,color:'#000',font:{size:13,weight:'700'}},
