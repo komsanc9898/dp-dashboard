@@ -1863,8 +1863,10 @@ function dpNewRateChart(){
   return `
   <div class="section">
     <div class="tbl-card" style="padding:22px 22px 16px;">
-      <div style="display:flex;justify-content:flex-end;align-items:center;">
-        <span class="muted" style="font-size:12px">ม.ค. – ${TMF[lastMonth]} ${App.selYear}</span>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="flex:1;"></div>
+        <div style="text-align:center;flex:2;font-size:15px;font-weight:600;color:#000;">อัตราการเปิด Drop Point ปี ${App.selYear}</div>
+        <div style="flex:1;text-align:right;"><span class="muted" style="font-size:12px">ม.ค. – ${TMF[lastMonth]} ${App.selYear}</span></div>
       </div>
       <div style="display:flex;gap:24px;justify-content:center;margin:10px 0 8px;flex-wrap:wrap;">
         <span style="display:flex;align-items:center;gap:7px;font-size:17px;font-weight:700;color:#e34948"><i style="width:14px;height:14px;border-radius:50%;background:#e34948;display:inline-block;flex-shrink:0"></i>PA</span>
@@ -1888,10 +1890,9 @@ function buildDpNewRateChart(){
   if(App.charts.dpNewRate){ try{App.charts.dpNewRate.destroy();}catch(e){} }
   const el=document.getElementById('dpNewRateChartEl'); if(!el) return;
   const exC=Chart.getChart(el); if(exC) exC.destroy();
-  const RED='#e34948', BLUE='#2a78d6', BLUE_LIGHT='#6fa8e0';
-  const selIdx=App.selMonth-1;
+  const RED='#e34948', BLUE='#2a78d6';
   const maxVal=Math.max(...pa.filter(v=>v!=null),...act.filter(v=>v!=null),9)+4;
-  const actColors=months.map((m,i)=>i===selIdx?BLUE_LIGHT:BLUE);
+  const actColors=months.map(()=>BLUE);
 
   const lollipopStem={
     id:'lollipopStem',
@@ -1899,17 +1900,17 @@ function buildDpNewRateChart(){
       const {ctx}=chart;
       const metaPa=chart.getDatasetMeta(0), metaAct=chart.getDatasetMeta(1);
       const yZero=chart.scales.y.getPixelForValue(0);
-      metaAct.data.forEach((point,pi)=>{
-        if(act[pi]==null) return;
-        ctx.save();
-        ctx.strokeStyle=actColors[pi]; ctx.lineWidth=5;
-        ctx.beginPath(); ctx.moveTo(point.x,yZero); ctx.lineTo(point.x,point.y); ctx.stroke();
-        ctx.restore();
-      });
       metaPa.data.forEach((point,pi)=>{
         if(pa[pi]==null) return;
         ctx.save();
         ctx.strokeStyle=RED; ctx.lineWidth=3;
+        ctx.beginPath(); ctx.moveTo(point.x,yZero); ctx.lineTo(point.x,point.y); ctx.stroke();
+        ctx.restore();
+      });
+      metaAct.data.forEach((point,pi)=>{
+        if(act[pi]==null) return;
+        ctx.save();
+        ctx.strokeStyle=actColors[pi]; ctx.lineWidth=5;
         ctx.beginPath(); ctx.moveTo(point.x,yZero); ctx.lineTo(point.x,point.y); ctx.stroke();
         ctx.restore();
       });
