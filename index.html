@@ -1937,15 +1937,34 @@ function buildDpNewRateChart(){
     }
   };
 
+  const xTickMarks={
+    id:'xTickMarks',
+    afterDraw(chart){
+      const {ctx,scales}=chart;
+      const xScale=scales.x, yScale=scales.y;
+      const yBase=yScale.getPixelForValue(yScale.min);
+      ctx.save();
+      ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+      months.forEach((m,i)=>{
+        const xPix=xScale.getPixelForValue(i);
+        ctx.beginPath();
+        ctx.moveTo(xPix,yBase);
+        ctx.lineTo(xPix,yBase+6); // tick extends outside (below) the axis line
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+  };
+
   App.charts.dpNewRate=new Chart(el,{
     type:'scatter',
-    plugins:[lollipopStem,pointLabels],
+    plugins:[lollipopStem,pointLabels,xTickMarks],
     data:{datasets:[
       {label:'PA',data:months.map((m,i)=>pa[i]==null?null:{x:i,y:pa[i]}),backgroundColor:RED,borderColor:RED,pointRadius:15,pointHoverRadius:15},
       {label:'Act',data:months.map((m,i)=>act[i]==null?null:{x:i,y:act[i]}),backgroundColor:actColors,borderColor:actColors,pointRadius:15,pointHoverRadius:15},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
-      layout:{padding:{top:8,bottom:2}},
+      layout:{padding:{top:8,bottom:4}},
       plugins:{legend:{display:false},datalabels:{display:false},
         tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${item.raw.y}`}}},
       scales:{
