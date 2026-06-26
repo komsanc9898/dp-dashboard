@@ -841,7 +841,6 @@ function shBuildMaster(paWb, actWb){
       if(mi<0 || mi>11) continue;
       const pa=r[2], ab=r[3], cc=r[4], td=r[8], up=r[9];
       if(pa==null && ab==null && cc==null) continue;
-      console.log('[parseDpNewRate] row', i, 'month', monLabel, '→ pa:', pa, 'ab:', ab, 'cc:', cc, seen.has(mi)?'(DUPLICATE — ignored, first occurrence kept)':'');
       if(seen.has(mi)) continue; // only the first row for this month counts
       out.pa[mi] = pa==null?0:shNum(pa);
       out.act_ab[mi] = (ab===null||ab===undefined||ab==='')?null:shNum(ab);
