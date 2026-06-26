@@ -2227,17 +2227,18 @@ function buildDpOpenCloseChart(){
   App.charts.dpOpenClose=new Chart(el,{
     type:'line',
     plugins:[actBars,hollowPoints,monthLabels2,yTickMarks2],
-    data:{labels:months,datasets:[
-      {label:'Act',data:act.map(v=>v==null?null:v),borderColor:GREEN,backgroundColor:'#fff',pointRadius:0,borderWidth:0,showLine:false},
-      {label:'Close',data:close.map(v=>v==null?null:v),borderColor:RED,backgroundColor:'#fff',pointRadius:0,borderWidth:2,borderDash:[6,4],showLine:true,tension:0},
-      {label:'PA',data:pa.map(v=>v==null?null:v),borderColor:BLUE,backgroundColor:'#fff',pointRadius:0,borderWidth:2,borderDash:[6,4],showLine:true,tension:0},
+    data:{datasets:[
+      {label:'Act',data:months.map((m,i)=>act[i]==null?null:{x:i,y:act[i]}),borderColor:GREEN,backgroundColor:'#fff',pointRadius:0,borderWidth:0,showLine:false},
+      {label:'Close',data:months.map((m,i)=>close[i]==null?null:{x:i,y:close[i]}),borderColor:RED,backgroundColor:'#fff',pointRadius:0,borderWidth:2,borderDash:[6,4],showLine:true,tension:0},
+      {label:'PA',data:months.map((m,i)=>pa[i]==null?null:{x:i,y:pa[i]}),borderColor:BLUE,backgroundColor:'#fff',pointRadius:0,borderWidth:2,borderDash:[6,4],showLine:true,tension:0},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       layout:{padding:{top:8,bottom:28,left:8}},
       plugins:{legend:{display:false},datalabels:{display:false},
-        tooltip:{callbacks:{label:item=>`${item.dataset.label}: ${item.raw}`}}},
+        tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${item.raw.y}`}}},
       scales:{
-        x:{ticks:{display:false},grid:{display:false},border:{display:true,color:'#000',width:1.5}},
+        x:{type:'linear',min:-0.5,max:months.length-0.5,
+          ticks:{display:false},grid:{display:false},border:{display:true,color:'#000',width:1.5}},
         y:{min:0,max:Math.max(15,Math.ceil(maxVal/5)*5),
           ticks:{stepSize:5,color:'#000',font:{size:13,weight:'700'}},
           grid:{color:cssv('--chart-grid')},border:{display:true,color:'#000',width:1.5}}
