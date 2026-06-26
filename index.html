@@ -1864,15 +1864,12 @@ function dpNewRateChart(){
   return `
   <div class="section">
     <div class="tbl-card" style="padding:22px 22px 16px;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-        <div style="flex:1;"></div>
-        <h3 style="text-align:center;flex:2;margin:0;">อัตราการเปิด Drop Point ใหม่ เทียบ PA</h3>
-        <div style="flex:1;text-align:right;"><span class="muted" style="font-size:12px">ม.ค. – ${TMF[lastMonth]} ${App.selYear}</span></div>
+      <div style="display:flex;justify-content:flex-end;align-items:center;">
+        <span class="muted" style="font-size:12px">ม.ค. – ${TMF[lastMonth]} ${App.selYear}</span>
       </div>
-      <div style="text-align:center;font-size:15px;font-weight:600;color:#000;margin-top:10px;">อัตราการเปิด Drop Point ใหม่</div>
       <div style="display:flex;gap:24px;justify-content:center;margin:10px 0 8px;flex-wrap:wrap;">
-        <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#e34948"><i style="width:11px;height:11px;border-radius:50%;background:#e34948;display:inline-block;flex-shrink:0"></i>PA</span>
-        <span style="display:flex;align-items:center;gap:6px;font-size:14px;font-weight:700;color:#2a78d6"><i style="width:11px;height:11px;border-radius:50%;background:#2a78d6;display:inline-block;flex-shrink:0"></i>Act</span>
+        <span style="display:flex;align-items:center;gap:7px;font-size:17px;font-weight:700;color:#e34948"><i style="width:14px;height:14px;border-radius:50%;background:#e34948;display:inline-block;flex-shrink:0"></i>PA</span>
+        <span style="display:flex;align-items:center;gap:7px;font-size:17px;font-weight:700;color:#2a78d6"><i style="width:14px;height:14px;border-radius:50%;background:#2a78d6;display:inline-block;flex-shrink:0"></i>Act</span>
       </div>
       <div class="chart-box" style="height:280px;margin-top:6px;"><canvas id="dpNewRateChartEl"></canvas></div>
     </div>
@@ -1892,7 +1889,7 @@ function buildDpNewRateChart(){
   if(App.charts.dpNewRate){ try{App.charts.dpNewRate.destroy();}catch(e){} }
   const el=document.getElementById('dpNewRateChartEl'); if(!el) return;
   const exC=Chart.getChart(el); if(exC) exC.destroy();
-  const RED='#e34948', BLUE='#2a78d6', BLUE_LIGHT='#6fa8e0', STEM='#f3c9c8';
+  const RED='#e34948', BLUE='#2a78d6', BLUE_LIGHT='#6fa8e0';
   const selIdx=App.selMonth-1;
   const maxVal=Math.max(...pa.filter(v=>v!=null),...act.filter(v=>v!=null),9)+4;
   const actColors=months.map((m,i)=>i===selIdx?BLUE_LIGHT:BLUE);
@@ -1913,7 +1910,7 @@ function buildDpNewRateChart(){
       metaPa.data.forEach((point,pi)=>{
         if(pa[pi]==null) return;
         ctx.save();
-        ctx.strokeStyle=STEM; ctx.lineWidth=3;
+        ctx.strokeStyle=RED; ctx.lineWidth=3;
         ctx.beginPath(); ctx.moveTo(point.x,yZero); ctx.lineTo(point.x,point.y); ctx.stroke();
         ctx.restore();
       });
@@ -1944,26 +1941,54 @@ function buildDpNewRateChart(){
       const xScale=scales.x, yScale=scales.y;
       const yBase=yScale.getPixelForValue(yScale.min);
       ctx.save();
+      ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+      for(let v=-0.5; v<=months.length-0.5+0.001; v+=1){
+        const xPix=xScale.getPixelForValue(v);
+        ctx.beginPath();
+        ctx.moveTo(xPix,yBase);
+        ctx.lineTo(xPix,yBase+6);
+        ctx.stroke();
+      }
       ctx.fillStyle='#000';
       ctx.font='700 13px '+(cssv('--font')||'sans-serif');
       ctx.textAlign='center'; ctx.textBaseline='top';
       months.forEach((m,i)=>{
         const xPix=xScale.getPixelForValue(i);
-        ctx.fillText(m, xPix, yBase+8);
+        ctx.fillText(m, xPix, yBase+10);
       });
+      ctx.restore();
+    }
+  };
+
+  const yTickMarks={
+    id:'yTickMarks',
+    afterDraw(chart){
+      const {ctx,scales}=chart;
+      const yScale=scales.y, xScale=scales.x;
+      const xBase=xScale.getPixelForValue(xScale.min);
+      ctx.save();
+      ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+      const step=yScale.options.ticks.stepSize||5;
+      for(let v=yScale.min; v<=yScale.max; v+=step){
+        const yPix=yScale.getPixelForValue(v);
+        ctx.beginPath();
+        ctx.moveTo(xBase-6,yPix);
+        ctx.lineTo(xBase,yPix);
+        ctx.stroke();
+      }
       ctx.restore();
     }
   };
 
   App.charts.dpNewRate=new Chart(el,{
     type:'scatter',
-    plugins:[lollipopStem,pointLabels,monthLabels],
+    plugins:[lollipopStem,pointLabels,monthLabels,yTickMarks],
     data:{datasets:[
       {label:'PA',data:months.map((m,i)=>pa[i]==null?null:{x:i,y:pa[i]}),backgroundColor:RED,borderColor:RED,pointRadius:15,pointHoverRadius:15},
       {label:'Act',data:months.map((m,i)=>act[i]==null?null:{x:i,y:act[i]}),backgroundColor:actColors,borderColor:actColors,pointRadius:15,pointHoverRadius:15},
     ]},
     options:{responsive:true,maintainAspectRatio:false,animation:false,
-      layout:{padding:{top:8,bottom:24}},
+      layout:{padding:{top:8,bottom:28,left:8}},
       plugins:{legend:{display:false},datalabels:{display:false},
         tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${item.raw.y}`}}},
       scales:{
