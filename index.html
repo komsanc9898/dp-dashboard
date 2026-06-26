@@ -829,6 +829,10 @@ function shBuildMaster(paWb, actWb){
     const rows = shAOA(ws);
     const out = {pa:z12().map(()=>null), act_ab:z12().map(()=>null), act_cc:z12().map(()=>null),
                  test_drive:z12().map(()=>null), up_cc:z12().map(()=>null)};
+    const seen = new Set(); // months already filled — guards against a duplicate/summary
+                             // row further down the sheet (e.g. a second table, a forecast
+                             // block, or footer note that happens to repeat a month label)
+                             // silently overwriting the correct first-table value.
     let any=false;
     for(let i=0;i<rows.length;i++){
       const r=rows[i]; if(!r) continue;
@@ -837,11 +841,14 @@ function shBuildMaster(paWb, actWb){
       if(mi<0 || mi>11) continue;
       const pa=r[2], ab=r[3], cc=r[4], td=r[8], up=r[9];
       if(pa==null && ab==null && cc==null) continue;
+      console.log('[parseDpNewRate] row', i, 'month', monLabel, '→ pa:', pa, 'ab:', ab, 'cc:', cc, seen.has(mi)?'(DUPLICATE — ignored, first occurrence kept)':'');
+      if(seen.has(mi)) continue; // only the first row for this month counts
       out.pa[mi] = pa==null?0:shNum(pa);
       out.act_ab[mi] = (ab===null||ab===undefined||ab==='')?null:shNum(ab);
       out.act_cc[mi] = (cc===null||cc===undefined||cc==='')?null:shNum(cc);
       out.test_drive[mi] = (td===null||td===undefined||td==='')?null:shNum(td);
       out.up_cc[mi] = (up===null||up===undefined||up==='')?null:shNum(up);
+      seen.add(mi);
       any=true;
     }
     return any?out:null;
