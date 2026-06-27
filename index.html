@@ -744,6 +744,11 @@ function buildData(month,year){
 const DEFAULT_PA_ID  = '1Jvhjge6yM6GbGuW7YE9fkX7bRfZV1F93Pkr9cHfhzHA'; // PA ทำ KPI+Dashboard
 const DEFAULT_ACT_ID = '1y4WQNtwQ7vHOCn4GeebRY1Q3Jpm09oxyG7txtr_3_o8'; // Act AB+CC 68-69
 
+// เส้นแบ่งเดือน "เก่า/ใหม่" สำหรับจัดประเภท DP: DP ที่ไม่อยู่ในชีต "DP ใหม่" แต่มียอด Act
+// ในเดือน 1..BASELINE_MONTH ถือเป็น "DP เก่า"; ถ้ามี Act ครั้งแรกหลังเดือนนี้ถือเป็น "DP ใหม่".
+// ปรับเลขนี้ปีละครั้ง (ปัจจุบัน 5 = พ.ค. คือเดือนสุดท้ายของชุดข้อมูล baseline)
+const BASELINE_MONTH = 5;
+
 const _embeddedBackup  = DP_MASTER;      // demo fallback (captured before any reassignment)
 const _embeddedSummary = ACT68_SUMMARY;
 
@@ -901,6 +906,64 @@ function shBuildMaster(paWb, actWb){
     return any?out:null;
   }
 
+  // ---- "DP ใหม่" sheet: the master list of which DPs count as "new" ----
+  // This sheet (NOT "DP เปิดใหม่", which is the monthly opening-rate summary) lists each
+  // new Drop Point by its real area name. A DP is classified "new" iff its normalized name
+  // appears here; everything else is "old". This replaces the previous approach of reading
+  // a Status="ใหม่" column on the PA sheet, because the PA sheet uses placeholder names
+  // ("Drop Point ใหม่ 1"…) that never match the real names in the Actual file, whereas this
+  // sheet uses the same real names as the Actual file. Returns a Set of normalized names.
+  function parseDpNewList(){
+    const ws = paWb.Sheets['DP ใหม่']; if(!ws) return null;
+    const rows = shAOA(ws);
+    // find the DP-name column from the header row (label "DP", possibly with trailing space)
+    let dpCol=-1, hr=-1;
+    for(let i=0;i<Math.min(rows.length,8);i++){
+      const r=rows[i]||[];
+      for(let c=0;c<r.length;c++){ if(/^dp\s*$/i.test(String(r[c]==null?'':r[c]).trim())){ dpCol=c; hr=i; break; } }
+      if(dpCol>=0) break;
+    }
+    if(dpCol<0){ dpCol=3; hr=1; } // fallback to observed layout (col D, header on row 2)
+    const set=new Set();
+    for(let i=hr+1;i<rows.length;i++){
+      const r=rows[i]; if(!r) continue;
+      const name=String(r[dpCol]==null?'':r[dpCol]).trim(); if(!name) continue;
+      const key=shNormBranch(name); if(key) set.add(key);
+    }
+    return set.size?set:null;
+  }
+
+  // ---- "Act 68" sheet: ready-made last-year actuals, already split เก่า/ใหม่ and AB/CC ----
+  // Block layout: a header row whose col B is 'AB+CC' / 'AB' / 'CC', then within that block a
+  // 'ยอดขาย DP เก่า' row and a 'ยอดขาย DP ใหม่' row, each with Jan–Dec in cols C..N (index 2..13).
+  // We read these directly instead of re-deriving Act 68 from the Actual file, because this
+  // sheet is the manually-verified source of truth for prior-year numbers.
+  function parseAct68(){
+    const ws = paWb.Sheets['Act 68']; if(!ws) return null;
+    const rows = shAOA(ws);
+    const mk=()=>({old:z12(), new:z12()});
+    const S={abcc:mk(), ab:mk(), cc:mk()};
+    let cur=null, got=false;
+    const readMonths=(r)=>{ const a=z12(); for(let m=0;m<12;m++){ const v=r[2+m]; a[m]=(v===null||v===undefined||v===''||v==='-')?0:shNum(v); } return a; };
+    for(let i=0;i<rows.length;i++){
+      const r=rows[i]; if(!r) continue;
+      const b=String(r[1]==null?'':r[1]).trim();
+      if(b==='AB+CC'){ cur='abcc'; continue; }
+      if(b==='AB'){ cur='ab'; continue; }
+      if(b==='CC'){ cur='cc'; continue; }
+      if(!cur) continue;
+      // take the FIRST เก่า/ใหม่ row in each block (guards against the repeated summary
+      // rows further down the AB+CC block, e.g. rows 15-16 duplicating rows 4/7).
+      if(b==='ยอดขาย DP เก่า' && S[cur].old.every(v=>v===0)){ S[cur].old=readMonths(r); got=true; }
+      else if(b==='ยอดขาย DP ใหม่' && S[cur].new.every(v=>v===0)){ S[cur].new=readMonths(r); got=true; }
+    }
+    if(!got) return null;
+    const fill=(o)=>({old:o.old, new:o.new,
+                      total:o.old.map((v,m)=>v+o.new[m]),
+                      bkk:z12(), upc:z12()});
+    return {abcc:fill(S.abcc), ab:fill(S.ab), cc:fill(S.cc)};
+  }
+
   // ---- File 1 (PA KPI): master list + monthly targets ----
   function paCols(hrow){
     const c={statusCol:-1,dcCol:-1,phakCol:-1,dpCol:-1,month:z12().map(()=>-1)};
@@ -986,8 +1049,35 @@ function shBuildMaster(paWb, actWb){
   // back-fill any missing region from DC map
   const out=[...byKey.values()];
   out.forEach(o=>{ if(!o.phak){ o.phak=dcRegion.get(shNormDC(o.dc))||'อื่นๆ'; } });
+
+  // ---- authoritative old/new classification (3-tier priority rule) ----
+  // 1) name is in the "DP ใหม่" master sheet            → NEW (always)
+  // 2) else, had any Act revenue in baseline months     → OLD (a branch already operating
+  //    before the new-DP tracking window; baseline = Jan..BASELINE_MONTH, currently พ.ค.=5)
+  // 3) else (first Act appears only after baseline, i.e. มิ.ย.–ธ.ค.) → NEW
+  // BASELINE_MONTH is the single knob to bump once a year; it is NOT the live "latest month"
+  // (using that would let the divider slide every refresh and wrongly age-out Jun+ openings).
+  const newSet = parseDpNewList();
+  if(newSet){
+    const bm = BASELINE_MONTH; // 1-based last baseline month (5 = พ.ค.)
+    const hadBaselineAct = (o)=>{
+      for(let m=0;m<bm;m++){
+        if((o.act69_ab[m]||0)>0 || (o.act69_cc[m]||0)>0 ||
+           (o.act68_ab[m]||0)>0 || (o.act68_cc[m]||0)>0) return true;
+      }
+      return false;
+    };
+    out.forEach(o=>{
+      if(newSet.has(shNormBranch(o.dp)))      o.isNew = true;   // rule 1
+      else if(hadBaselineAct(o))               o.isNew = false;  // rule 2
+      else                                     o.isNew = true;   // rule 3
+    });
+    out._newSetSize = newSet.size;
+  }
+
   out._dpNewRate = parseDpNewRate();
   out._dpOpenClose = parseDpOpenClose();
+  out._act68 = parseAct68(); // ready-made Act 68 summary straight from the "Act 68" sheet
   out._unmatchedActualDp = [...unmatchedActualDp.values()]; // DP names found only in the
     // Actual file, never matched to a PA-sheet record — these have no isNew status from
     // the source-of-truth (PA Status column) and default to "เก่า"; surfaced here so a
@@ -1031,7 +1121,9 @@ async function shEnsureLoaded(force){
       const master = shBuildMaster(paWb, actWb);
       if(!master || !master.length) throw new Error('ไม่พบข้อมูล Drop Point ในชีต');
       DP_MASTER = master;
-      ACT68_SUMMARY = shComputeAct68(master);
+      // Act 68 comes straight from the "Act 68" sheet (already split เก่า/ใหม่ + AB/CC).
+      // Only fall back to deriving it from the Actual file if that sheet is absent.
+      ACT68_SUMMARY = master._act68 || shComputeAct68(master);
       AVAIL = detectAvail(DP_MASTER);
       LATEST_MONTH = AVAIL[CUR_YEAR].length ? Math.max(...AVAIL[CUR_YEAR])
                      : (AVAIL[2568].length ? Math.max(...AVAIL[2568]) : 5);
