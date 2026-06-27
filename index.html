@@ -2567,6 +2567,11 @@ function buildYodkaiSadomCharts(){
     if(App.charts[elId]){ try{App.charts[elId].destroy();}catch(e){} }
     const RED='#e34948', BLUE='#2a78d6';
     const maxVal=Math.max(...D.pa,...D.act,1);
+    // fixed y-axis per chart: AB+CC → step 10M, ceiling 60M; AB and CC → step 5M, ceiling 30M.
+    // If data ever exceeds the ceiling, round the max up to the next whole step so ticks stay even.
+    const yStep = kind==='t' ? 10e6 : 5e6;
+    const yMaxFixed = kind==='t' ? 60e6 : 30e6;
+    const yMax = Math.max(yMaxFixed, Math.ceil(maxVal/yStep)*yStep);
 
     const hollowPoints={
       id:'hollowPoints_'+elId,
@@ -2609,8 +2614,8 @@ function buildYodkaiSadomCharts(){
               // generator was dropping index 0 because min=-0.3 sits just left of it.
             ticks:{stepSize:1,autoSkip:false,color:'#000',font:{size:11,weight:'700'},callback:v=>months[v]??''},
             grid:{display:false},border:{display:true,color:'#000',width:1}},
-          y:{min:0,max:Math.ceil(maxVal/5e6)*5e6,
-            ticks:{stepSize:5e6,color:'#000',font:{size:10},callback:v=>v===0?'-':(v/1e6).toFixed(0)},
+          y:{min:0,max:yMax,
+            ticks:{stepSize:yStep,color:'#000',font:{size:10},callback:v=>v===0?'-':(v/1e6).toFixed(0)},
             grid:{color:cssv('--chart-grid')},border:{display:false},
             title:{display:true,text:'Millions',font:{size:10,weight:'700'}}}
         }}
