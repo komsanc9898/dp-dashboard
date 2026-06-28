@@ -467,38 +467,16 @@ tr.total:hover td{background:var(--surface-3);}
   body{background:#fff;}
 }
 
-/* Trend + Donut responsive layout */
+/* Trend layout (donut removed) */
 .trend-donut-wrap {
   display: grid;
-  grid-template-columns: 1fr 200px;
+  grid-template-columns: 1fr;
   gap: 16px;
   align-items: start;
-}
-.donut-side {
-  text-align: center;
-  padding-top: 4px;
 }
 @media (max-width: 700px) {
   .trend-donut-wrap {
     grid-template-columns: 1fr;
-  }
-  .donut-side {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    align-items: center;
-    text-align: left;
-    padding-top: 0;
-    border-top: 1px solid var(--border);
-    padding-top: 12px;
-    margin-top: 4px;
-  }
-  .donut-side > div:first-child,
-  .donut-side > div:nth-child(2) {
-    grid-column: 1 / -1;
-  }
-  .donut-side .chart-box {
-    height: 120px !important;
   }
 }
 
@@ -1793,15 +1771,6 @@ function overview(){
             </div>
             <div class="chart-box" style="height:300px;"><canvas id="trendChart"></canvas></div>
           </div>
-          <div class="donut-side">
-            <div style="font-weight:600;font-size:13px;margin-bottom:2px;color:#000">สัดส่วนรายได้</div>
-            <div style="font-size:11px;color:#000;margin-bottom:8px;">กทม. vs ตจว. · ${TMF[App.selMonth]} ${App.selYear}</div>
-            <div class="chart-box" style="height:160px;"><canvas id="donutChart"></canvas></div>
-            <div style="display:flex;justify-content:center;gap:12px;margin-top:8px;flex-wrap:wrap;">
-              <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#000"><i style="width:8px;height:8px;border-radius:50%;background:var(--info);display:inline-block"></i>กทม. ${area.total?Math.round(area.bkk/area.total*100):0}%</span>
-              <span style="display:flex;align-items:center;gap:5px;font-size:12px;color:#000"><i style="width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block"></i>ตจว. ${area.total?Math.round(area.upcountry/area.total*100):0}%</span>
-            </div>
-          </div>
         </div>
       </div>
     </div>
@@ -1815,8 +1784,8 @@ function overview(){
   (function buildWhenReady(tries){
     const el=document.getElementById('trendChart');
     if(el && el.parentElement && el.parentElement.clientWidth>20){
-      buildTrend(); buildDonut();
-      setTimeout(()=>{ App.charts.trend&&App.charts.trend.resize(); App.charts.donut&&App.charts.donut.resize(); },60);
+      buildTrend();
+      setTimeout(()=>{ App.charts.trend&&App.charts.trend.resize(); },60);
     } else if(tries<40){ setTimeout(()=>buildWhenReady(tries+1),25); }
   })(0);
 }
@@ -2784,7 +2753,7 @@ const App = {
     this.updateDarkIcon();
     this.buildNav(); this.buildTabbar(); this.buildThemePop(); this.buildExportPop(); this.buildSheetPop();
     document.addEventListener('keydown', e=>{ if(e.key==='Escape') this.closeAll(); });
-    window.addEventListener('resize', ()=>{ if(this.page==='overview'){ this.charts.trend&&this.charts.trend.resize(); this.charts.donut&&this.charts.donut.resize(); } });
+    window.addEventListener('resize', ()=>{ if(this.page==='overview'){ this.charts.trend&&this.charts.trend.resize(); } });
 
     // Wait for Chart.js (loaded via fallback-mirror loader in <head>) before doing anything
     // that touches `Chart`. If every mirror failed (e.g. all CDNs blocked on this network),
