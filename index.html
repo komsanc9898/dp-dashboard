@@ -319,6 +319,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:11px;}
 .kpi-ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;flex-shrink:0;}
 .kpi-ic svg{width:18px;height:18px;}
+.kpi-text{min-width:0;flex:1 1 auto;}
 .kpi-lbl{font-size:13px;color:var(--text-2);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .kpi-val{font-size:clamp(24px,3vw,30px);font-weight:700;letter-spacing:-.8px;line-height:1.05;font-variant-numeric:tabular-nums;}
 .kpi-foot{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap;font-size:12.5px;color:var(--text-3);min-height:24px;}
@@ -1704,7 +1705,7 @@ function chipTxt(txt, kind){ return `<span class="chip ${kind}">${txt}</span>`; 
 const ICON = {
   revenue:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
   dry:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M3 7l3-4h12l3 4M9 11h6"/></svg>',
-  cold:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2v20M4 7l16 10M20 7 4 17M12 5 9 8m3-3 3 3M4 9.5 7 11 4 12.5M20 9.5 17 11l3 1.5M12 19l-3-3m3 3 3-3"/></svg>',
+  cold:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 4v16M6 7l12 10M18 7 6 17"/><path d="M12 4l-2 2m2-2 2 2M12 20l-2-2m2 2 2-2M6 7l1 2.7M6 7l2.7-1M18 7l-1 2.7M18 7l-2.7-1M6 17l1-2.7M6 17l2.7 1M18 17l-1-2.7M18 17l-2.7 1"/></svg>',
   shop:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9.5 4.5 4h15L21 9.5M4 9.5h16V20H4zM4 9.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0"/></svg>',
 };
 function kpiIconTint(varName){ return `background:var(${varName});opacity:0.85;color:#fff;`; }
@@ -1733,7 +1734,7 @@ function overview(){
   const kpiHTML = kpis.map(k=>`
     <div class="kpi">
       <div class="kpi-top">
-        <div><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val">${k.val}</div></div>
+        <div class="kpi-text"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val">${k.val}</div></div>
         <div class="kpi-ic" style="${kpiIconTint(k.v)}">${k.ic}</div>
       </div>
       <div class="kpi-foot">${k.chip}<span>${k.foot}</span></div>
@@ -2180,7 +2181,7 @@ function buildDpNewRateChart(){
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       layout:{padding:{top:8,bottom:28,left:8}},
       plugins:{legend:{display:false},datalabels:{display:false},
-        tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${item.raw.y}`}}},
+        tooltip:{filter:item=>item.raw!=null, callbacks:{title:items=>(items[0]&&items[0].raw)?months[items[0].raw.x]:'',label:item=>item.raw?`${item.dataset.label}: ${item.raw.y}`:''}}},
       scales:{
         x:{type:'linear',min:-0.5,max:months.length-0.5,
           ticks:{display:false},
@@ -2376,7 +2377,7 @@ function buildDpOpenCloseChart(){
     options:{responsive:true,maintainAspectRatio:false,animation:false,
       layout:{padding:{top:8,bottom:28,left:8}},
       plugins:{legend:{display:false},datalabels:{display:false},
-        tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${item.raw.y}`}}},
+        tooltip:{filter:item=>item.raw!=null, callbacks:{title:items=>(items[0]&&items[0].raw)?months[items[0].raw.x]:'',label:item=>item.raw?`${item.dataset.label}: ${item.raw.y}`:''}}},
       scales:{
         x:{type:'linear',min:-0.5,max:months.length-0.5,
           ticks:{display:false},grid:{display:false},border:{display:true,color:'#000',width:1.5}},
@@ -2608,7 +2609,7 @@ function buildYodkaiSadomCharts(){
       options:{responsive:true,maintainAspectRatio:false,animation:false,
         layout:{padding:{top:16,bottom:8,left:4,right:4}},
         plugins:{legend:{display:false},datalabels:{display:false},
-          tooltip:{callbacks:{title:items=>months[items[0].raw.x],label:item=>`${item.dataset.label}: ${fmt(item.raw.y)}`}}},
+          tooltip:{callbacks:{title:items=>(items[0]&&items[0].raw)?months[items[0].raw.x]:'',label:item=>(item.raw&&item.raw.y!=null)?`${item.dataset.label}: ${fmt(item.raw.y)}`:''}}},
         scales:{
           x:{type:'linear',min:-0.3,max:months.length-0.7,
             afterBuildTicks:axis=>{ axis.ticks=months.map((_,i)=>({value:i})); }, // force a
