@@ -1801,8 +1801,8 @@ function overview(){
   (function buildWhenReady(tries){
     const el=document.getElementById('trendChart');
     if(el && el.parentElement && el.parentElement.clientWidth>20){
-      buildTrend();
-      setTimeout(()=>{ App.charts.trend&&App.charts.trend.resize(); },60);
+      try{ buildTrend(); setTimeout(()=>{ App.charts.trend&&App.charts.trend.resize(); },60); }
+      catch(e){ console.error('buildTrend failed', e); el.parentElement.innerHTML='<div class="muted" style="padding:20px;text-align:center;font-size:13px">โหลดกราฟไม่สำเร็จ: '+(e.message||e)+'</div>'; }
     } else if(tries<40){ setTimeout(()=>buildWhenReady(tries+1),25); }
   })(0);
 }
@@ -1956,7 +1956,8 @@ function kpi(){
     const el=document.getElementById('dpNewRateChartEl');
     if(!el) return;
     if(el.parentElement && el.parentElement.clientWidth>20){
-      buildDpNewRateChart();
+      try{ buildDpNewRateChart(); }
+      catch(e){ console.error('buildDpNewRateChart failed', e); el.parentElement.innerHTML='<div class="muted" style="padding:20px;text-align:center;font-size:13px">โหลดกราฟไม่สำเร็จ: '+(e.message||e)+'</div>'; }
     } else if(tries<40){ setTimeout(()=>buildWhenReady(tries+1),25); }
   })(0);
 
@@ -1964,7 +1965,8 @@ function kpi(){
     const el=document.getElementById('dpOpenCloseChartEl');
     if(!el) return;
     if(el.parentElement && el.parentElement.clientWidth>20){
-      buildDpOpenCloseChart();
+      try{ buildDpOpenCloseChart(); }
+      catch(e){ console.error('buildDpOpenCloseChart failed', e); el.parentElement.innerHTML='<div class="muted" style="padding:20px;text-align:center;font-size:13px">โหลดกราฟไม่สำเร็จ: '+(e.message||e)+'</div>'; }
     } else if(tries<40){ setTimeout(()=>buildWhenReady2(tries+1),25); }
   })(0);
 
@@ -1972,7 +1974,8 @@ function kpi(){
     const el=document.getElementById('yks_t');
     if(!el){ if(tries<40) setTimeout(()=>buildWhenReady3(tries+1),25); return; }
     if(el.parentElement && el.parentElement.clientWidth>20){
-      buildYodkaiSadomCharts();
+      try{ buildYodkaiSadomCharts(); }
+      catch(e){ console.error('buildYodkaiSadomCharts failed', e); el.parentElement.innerHTML='<div class="muted" style="padding:20px;text-align:center;font-size:13px">โหลดกราฟไม่สำเร็จ: '+(e.message||e)+'</div>'; }
     } else if(tries<40){ setTimeout(()=>buildWhenReady3(tries+1),25); }
   })(0);
 }
@@ -2555,6 +2558,7 @@ function areaSummarySection(){
 
 function buildYodkaiSadomCharts(){
   ['t','ab','cc'].forEach(kind=>{
+   try{
     const D = yodkaiSadomData(kind);
     if(D.lastMonth<1) return;
     const TMA = TM.slice(1,D.lastMonth+1);
@@ -2618,6 +2622,11 @@ function buildYodkaiSadomCharts(){
             title:{display:true,text:'Millions',font:{size:10,weight:'700'}}}
         }}
     });
+   }catch(e){
+     console.error('buildYodkaiSadomCharts['+kind+'] failed', e);
+     const el2=document.getElementById('yks_'+kind);
+     if(el2 && el2.parentElement) el2.parentElement.innerHTML='<div class="muted" style="padding:20px;text-align:center;font-size:13px">โหลดกราฟไม่สำเร็จ: '+(e.message||e)+'</div>';
+   }
   });
 }
 
