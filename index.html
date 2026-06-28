@@ -193,7 +193,7 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   .tb-brand .tb-logos img.lg-seal{height:19px;}
 }
 .tb-title h1{font-size:clamp(17px,2.4vw,21px);font-weight:700;letter-spacing:-.4px;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.tb-title p{font-size:12.5px;color:var(--text-3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tb-title p{font-size:14.5px;color:var(--text-3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .tb-actions{display:flex;align-items:center;gap:9px;flex-shrink:0;}
 
 .ctrl{
@@ -524,8 +524,8 @@ tr.total:hover td{background:var(--surface-3);}
     <header class="topbar">
       <div class="tb-brand">
         <div class="tb-title">
-          <h1 id="pageTitle" style="font-size:clamp(15px,2.1vw,19px);">Nim Express Drop Point</h1>
-          <p id="pageSub">KPI · ตัวชี้วัดและตารางสรุป</p>
+          <h1 id="pageTitle">ภาพรวม</h1>
+          <p id="pageSub">ภาพรวม · Drop Point · ของแห้ง + ของเย็น</p>
         </div>
       </div>
       <div class="tb-actions">
@@ -2810,7 +2810,7 @@ const App = {
     this.page=id;
     document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p===id));
     const n=NAV.find(x=>x.id===id);
-    // layout C: H1 stays the brand name; the tab name lives in the subtitle line
+    document.getElementById('pageTitle').textContent = n.label;
     document.getElementById('pageSub').textContent = n.sub ? `${n.label} · ${n.sub}` : n.label;
     this.closeAll();
     this.host.scrollTop=0; window.scrollTo(0,0);
