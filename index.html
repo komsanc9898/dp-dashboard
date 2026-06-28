@@ -152,9 +152,11 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
   background:var(--surface); border-right:1px solid var(--border);
   display:flex; flex-direction:column; z-index:40;
 }
-.rail-logo{display:flex;align-items:center;gap:11px;padding:20px 20px 18px;}
-.logo-mark{width:38px;height:38px;border-radius:11px;background:var(--hero-grad);display:grid;place-items:center;flex-shrink:0;box-shadow:var(--shadow-sm);}
-.logo-mark svg{width:20px;height:20px;color:#fff;}
+.rail-logo{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:18px 20px 16px;}
+.rail-logos{display:flex;align-items:center;gap:9px;}
+.rail-logos img.rl-nim{height:26px;display:block;}
+.rail-logos img.rl-seal{height:17px;display:block;}
+.rail-vdiv{width:1px;height:20px;background:var(--border-strong);flex-shrink:0;}
 .logo-text .lt-top{font-size:16px;font-weight:700;letter-spacing:-.2px;line-height:1.1;}
 .logo-text .lt-bot{font-size:11px;color:var(--text-3);font-weight:500;letter-spacing:.3px;margin-top:1px;}
 .rail-nav{flex:1;padding:8px 12px;display:flex;flex-direction:column;gap:3px;overflow-y:auto;}
@@ -414,8 +416,9 @@ tr.total:hover td{background:var(--surface-3);}
 }
 @media (max-width:860px){
   .rail{width:var(--rail-w-collapsed);}
-  .logo-text,.nav-label,.rail-foot span,.nav-i span{display:none;}
-  .rail-logo{justify-content:center;padding:18px 0;}
+  .logo-text,.nav-label,.rail-foot span,.nav-i span,.rail-vdiv,.rail-logos img.rl-seal{display:none;}
+  .rail-logo{align-items:center;padding:18px 0;}
+  .rail-logos img.rl-nim{height:30px;}
   .nav-i{justify-content:center;padding:12px;}
   .nav-i.active::before{display:none;}
   .rail-foot{justify-content:center;}
@@ -507,12 +510,14 @@ tr.total:hover td{background:var(--surface-3);}
   <!-- ===== SIDEBAR ===== -->
   <aside class="rail">
     <div class="rail-logo">
-      <div class="logo-mark">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 3 7v10l9 5 9-5V7z"/><path d="M3 7l9 5 9-5M12 12v10"/></svg>
+      <div class="rail-logos">
+        <img class="rl-nim" id="logoNimRail" alt="NiM Express">
+        <div class="rail-vdiv"></div>
+        <img class="rl-seal" id="logoSealRail" alt="SEAL Cold Chain">
       </div>
       <div class="logo-text">
         <div class="lt-top">NiM Express</div>
-        <div class="lt-bot">Drop Point Analytics</div>
+        <div class="lt-bot">Drop Point</div>
       </div>
     </div>
     <nav class="rail-nav" id="railNav"></nav>
@@ -3098,6 +3103,8 @@ const LOGO_SEAL_B64="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAcIAAABvCAYAA
 function applyBrandLogos(){
   const a=document.getElementById('logoNim'); if(a) a.src=LOGO_NIM_B64;
   const b=document.getElementById('logoSeal'); if(b) b.src=LOGO_SEAL_B64;
+  const c=document.getElementById('logoNimRail'); if(c) c.src=LOGO_NIM_B64;
+  const d=document.getElementById('logoSealRail'); if(d) d.src=LOGO_SEAL_B64;
 }
 document.addEventListener('DOMContentLoaded', ()=>{applyBrandLogos();App.init();});
 
