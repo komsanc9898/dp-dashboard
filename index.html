@@ -8,6 +8,30 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>
+/* ============ GLOBAL ERROR SAFETY NET ============
+   If a critical script fails to parse/run (e.g. a network filter or
+   unstable WiFi truncates a CDN file mid-download, producing something
+   like "Unexpected end of input"), show a clear recovery message
+   instead of leaving the user on a silently broken/blank page. */
+(function(){
+  let shown = false;
+  window.addEventListener('error', function(e){
+    if (shown) return;
+    // Only react to script errors, not e.g. image 404s.
+    if (e.target && e.target !== window) return;
+    shown = true;
+    const div = document.createElement('div');
+    div.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0f1f3a;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;';
+    div.innerHTML = '<div style="background:#fff;border-radius:16px;padding:2rem;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);">' +
+      '<h2 style="margin:0 0 10px;font-size:18px;color:#111827;">โหลดหน้าเว็บไม่สมบูรณ์</h2>' +
+      '<p style="margin:0 0 18px;font-size:13.5px;color:#6b7280;line-height:1.6;">เกิดจากการเชื่อมต่ออินเทอร์เน็ตไม่เสถียร หรือ WiFi/เครือข่ายมีการกรองเนื้อหาที่ตัดไฟล์บางส่วนออกระหว่างโหลด กรุณาลองใหม่อีกครั้ง หรือเปลี่ยนเครือข่าย (เช่น สลับไปใช้ 4G/5G)</p>' +
+      '<button onclick="location.reload()" style="background:#1e3a8a;color:#fff;border:none;border-radius:10px;padding:11px 22px;font-size:14px;font-weight:600;cursor:pointer;">โหลดใหม่</button>' +
+      '</div>';
+    document.body ? document.body.appendChild(div) : document.addEventListener('DOMContentLoaded', ()=>document.body.appendChild(div));
+  }, true);
+})();
+</script>
+<script>
 /* ============ RESILIENT CDN LOADER ============
    Loads Chart.js (+ datalabels plugin) with fallback mirrors and retries,
    so a single blocked/slow CDN host doesn't break the whole dashboard.
