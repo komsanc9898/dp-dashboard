@@ -682,6 +682,27 @@ tr.total:hover td{background:var(--surface-3);}
       </div>
     </div>
   </div>
+
+  <!-- ===== JPG PAGE PICKER MODAL ===== -->
+  <div class="pdfpick-scrim" id="jpgpickScrim" onclick="App.closeJpgPicker()"></div>
+  <div class="pdfpick-modal" id="jpgpickModal">
+    <div class="pdfpick-head">
+      <h3>เลือกหน้าที่ต้องการ Export (JPG)</h3>
+      <button class="pdfpick-close" onclick="App.closeJpgPicker()" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="pdfpick-thumbs" id="jpgpickThumbs">
+      <div class="pdfpick-loading"><div class="spinner"></div><p>กำลังสร้างภาพตัวอย่าง…</p></div>
+    </div>
+    <div class="pdfpick-foot">
+      <span class="pdfpick-hint" id="jpgpickHint"></span>
+      <div class="pdfpick-actions">
+        <button class="ctrl" onclick="App.closeJpgPicker()">ยกเลิก</button>
+        <button class="ctrl ctrl-accent" id="jpgpickGoBtn" onclick="App.confirmJpgPicker()">ดาวน์โหลด</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <template id="__bundler_thumbnail">
@@ -3364,27 +3385,143 @@ const App = {
 
   exportPNG(){
     this.closeAll();
-    const doCapture = () => {
-      this.toast('กำลังสร้างภาพ JPG…');
-      const el = document.querySelector('.page-wrap') || document.querySelector('main') || document.body;
-      const pages = ['','ภาพรวม','KPI','ภูมิภาค','สาขา'];
-      const fname = `NiM_${pages[App.selPage]||'Dashboard'}_${TM[App.selMonth]}${App.selYear}.jpg`;
-      domtoimage.toJpeg(el, { quality: 0.92, bgcolor: '#ffffff' })
-        .then(dataUrl => {
-          const a = document.createElement('a');
-          a.href = dataUrl; a.download = fname;
-          document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          App.toast('บันทึกภาพ JPG สำเร็จ ✅');
-        })
-        .catch(e => { console.error(e); App.toast('เกิดข้อผิดพลาด: '+e.message); });
+    const ensureLib = () => new Promise((resolve, reject) => {
+      if (typeof html2canvas !== 'undefined') { resolve(); return; }
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload = resolve;
+      s.onerror = () => reject(new Error('โหลด library ไม่ได้ — ตรวจสอบอินเทอร์เน็ต'));
+      document.head.appendChild(s);
+    });
+
+    const JPG_PAGES = [
+      {id:'overview', label:'ภาพรวม'},
+      {id:'kpi', label:'KPI'},
+      {id:'regional', label:'ภูมิภาค'},
+      {id:'branches', label:'สาขา'},
+    ];
+    const waitForCharts = () => new Promise(resolve => setTimeout(resolve, 700));
+
+    const prepBranchesForExport = () => {
+      // Same as PDF export: JPG of "สาขา" includes Top10 + low-performer
+      // summaries only, not the full searchable all-branches table.
+      const fullTableSection = document.getElementById('content')
+        ?.querySelector('.tbl-card .filters')?.closest('.section');
+      if (fullTableSection) fullTableSection.style.display = 'none';
+      return fullTableSection;
     };
-    if (typeof domtoimage !== 'undefined') { doCapture(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js';
-    s.onload = doCapture;
-    s.onerror = () => App.toast('โหลด library ไม่ได้ — ตรวจสอบอินเทอร์เน็ต');
-    document.head.appendChild(s);
+
+    const doCaptureAll = async () => {
+      this.toast('กำลังสร้างภาพตัวอย่าง…');
+      const prevPage = this.page;
+      this._jpgPickShots = [];
+      try {
+        for (const p of JPG_PAGES) {
+          this.page = p.id;
+          document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p===p.id));
+          document.getElementById('pageTitle').textContent = p.label;
+          this.render();
+          await waitForCharts();
+
+          let hiddenEl = null;
+          if (p.id === 'branches') hiddenEl = prepBranchesForExport();
+
+          const canvas = await html2canvas(this.host, { backgroundColor: '#ffffff', scale: 1.5, useCORS: true });
+
+          if (hiddenEl) hiddenEl.style.display = '';
+
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          this._jpgPickShots.push({ id: p.id, label: p.label, dataUrl, w: canvas.width, h: canvas.height });
+        }
+        this.openJpgPicker();
+      } catch(e) {
+        console.error(e);
+        this.toast('เกิดข้อผิดพลาด: '+(e.message||e));
+      } finally {
+        this.page = prevPage;
+        document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p===prevPage));
+        const n = NAV.find(x=>x.id===prevPage);
+        if (n) document.getElementById('pageTitle').textContent = n.label;
+        this.render();
+      }
+    };
+
+    ensureLib().then(doCaptureAll).catch(e => { console.error(e); this.toast(e.message); });
   },
+
+  /* ---- JPG page picker (preview thumbnails, click to toggle, multi-download) ---- */
+  openJpgPicker(){
+    this._jpgPickSelected = new Set(this._jpgPickShots.map(s => s.id));
+
+    const modal = document.getElementById('jpgpickModal');
+    const scrim = document.getElementById('jpgpickScrim');
+    const thumbsEl = document.getElementById('jpgpickThumbs');
+    thumbsEl.innerHTML = '';
+    this._jpgPickShots.forEach(shot => {
+      const wrap = document.createElement('div');
+      wrap.className = 'pdfpick-thumb sel';
+      wrap.dataset.id = shot.id;
+      const img = document.createElement('img');
+      img.src = shot.dataUrl;
+      const lbl = document.createElement('span');
+      lbl.className = 'pn';
+      lbl.textContent = shot.label;
+      wrap.appendChild(img);
+      wrap.appendChild(lbl);
+      wrap.addEventListener('click', () => this.toggleJpgPickPage(shot.id));
+      thumbsEl.appendChild(wrap);
+    });
+
+    modal.classList.add('open');
+    scrim.classList.add('show');
+    this.syncJpgPickUI();
+  },
+  toggleJpgPickPage(id){
+    if (this._jpgPickSelected.has(id)) this._jpgPickSelected.delete(id);
+    else this._jpgPickSelected.add(id);
+    this.syncJpgPickUI();
+  },
+  syncJpgPickUI(){
+    const total = this._jpgPickShots.length;
+    document.querySelectorAll('#jpgpickThumbs .pdfpick-thumb').forEach(el => {
+      el.classList.toggle('sel', this._jpgPickSelected.has(el.dataset.id));
+    });
+    const hint = document.getElementById('jpgpickHint');
+    const n = this._jpgPickSelected.size;
+    hint.textContent = n ? `เลือก ${n} จาก ${total} หน้า` : `คลิกภาพตัวอย่างเพื่อเลือกหน้า (ทั้งหมด ${total} หน้า)`;
+  },
+  closeJpgPicker(){
+    document.getElementById('jpgpickModal').classList.remove('open');
+    document.getElementById('jpgpickScrim').classList.remove('show');
+    this._jpgPickShots = null;
+  },
+  async confirmJpgPicker(){
+    const hint = document.getElementById('jpgpickHint');
+    const selectedShots = this._jpgPickShots.filter(s => this._jpgPickSelected.has(s.id));
+    if (!selectedShots.length) { hint.textContent = 'กรุณาเลือกอย่างน้อย 1 หน้า'; hint.classList.add('err'); return; }
+
+    const btn = document.getElementById('jpgpickGoBtn');
+    const origLabel = btn.textContent;
+    btn.textContent = 'กำลังบันทึก…'; btn.disabled = true;
+    try {
+      for (const shot of selectedShots) {
+        const fname = `NiM_${shot.label}_${TM[this.selMonth]}${this.selYear}.jpg`;
+        const a = document.createElement('a');
+        a.href = shot.dataUrl; a.download = fname;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        await new Promise(r => setTimeout(r, 200)); // small gap between downloads
+      }
+      this.toast(`บันทึกภาพ JPG สำเร็จ (${selectedShots.length} หน้า) ✅`);
+      this.closeJpgPicker();
+    } catch(e) {
+      console.error(e);
+      hint.textContent = 'เกิดข้อผิดพลาด: '+(e.message||e);
+      hint.classList.add('err');
+    } finally {
+      btn.textContent = origLabel; btn.disabled = false;
+    }
+  },
+
   exportCSV(){
     this.closeAll();
     if(!this.D) return;
