@@ -8,65 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>
-/* ============ GLOBAL ERROR SAFETY NET (initial load only) ============
-   If a critical script fails to parse/run during the very first page
-   load (e.g. a network filter or unstable WiFi truncates a CDN file
-   mid-download, producing something like "Unexpected end of input"),
-   silently auto-retry once (a fresh reload usually succeeds since it's
-   a one-off network hiccup, not a persistent block). If the retry also
-   fails, show a clear recovery message instead of leaving the user on
-   a silently broken/blank page.
-   IMPORTANT: this only watches the initial load window (until the
-   'load' event fires) and disarms itself after that, so it can never
-   misfire later — e.g. from an unrelated runtime error while using a
-   feature like Export — and force an unwanted reload mid-session. */
-(function(){
-  let shown = false;
-  let armed = true;
-  const RETRY_KEY = 'dp_dashboard_autoretry';
-
-  window.addEventListener('load', function(){
-    // Page finished loading successfully — the safety net's job for
-    // this load is done. Disarm it so later, unrelated runtime errors
-    // (e.g. inside Export) never trigger a surprise reload, and clear
-    // the retry flag so a future genuine initial-load failure gets a
-    // fresh auto-retry of its own.
-    armed = false;
-    try { sessionStorage.removeItem(RETRY_KEY); } catch(err){}
-  });
-
-  window.addEventListener('error', function(e){
-    if (!armed || shown) return;
-    // Only react to script errors, not e.g. image 404s.
-    if (e.target && e.target !== window) return;
-    shown = true;
-
-    let alreadyRetried = false;
-    try { alreadyRetried = sessionStorage.getItem(RETRY_KEY) === '1'; } catch(err){}
-
-    if (!alreadyRetried) {
-      try { sessionStorage.setItem(RETRY_KEY, '1'); } catch(err){}
-      location.reload();
-      return;
-    }
-
-    // Already retried once and still broken — clear the flag so the
-    // next manual reload gets a fresh auto-retry attempt too, then
-    // show the recovery message for the user to act on.
-    try { sessionStorage.removeItem(RETRY_KEY); } catch(err){}
-
-    const div = document.createElement('div');
-    div.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0f1f3a;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;';
-    div.innerHTML = '<div style="background:#fff;border-radius:16px;padding:2rem;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);">' +
-      '<h2 style="margin:0 0 10px;font-size:18px;color:#111827;">โหลดหน้าเว็บไม่สมบูรณ์</h2>' +
-      '<p style="margin:0 0 18px;font-size:13.5px;color:#6b7280;line-height:1.6;">เกิดจากการเชื่อมต่ออินเทอร์เน็ตไม่เสถียร หรือ WiFi/เครือข่ายมีการกรองเนื้อหาที่ตัดไฟล์บางส่วนออกระหว่างโหลด กรุณาลองใหม่อีกครั้ง หรือเปลี่ยนเครือข่าย (เช่น สลับไปใช้ 4G/5G)</p>' +
-      '<button onclick="location.reload()" style="background:#1e3a8a;color:#fff;border:none;border-radius:10px;padding:11px 22px;font-size:14px;font-weight:600;cursor:pointer;">โหลดใหม่</button>' +
-      '</div>';
-    document.body ? document.body.appendChild(div) : document.addEventListener('DOMContentLoaded', ()=>document.body.appendChild(div));
-  }, true);
-})();
-</script>
-<script>
 /* ============ RESILIENT CDN LOADER ============
    Loads Chart.js (+ datalabels plugin) with fallback mirrors and retries,
    so a single blocked/slow CDN host doesn't break the whole dashboard.
@@ -343,23 +284,6 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;}
 .scrim.show{opacity:1;pointer-events:auto;}
-
-/* export page picker modal */
-.export-modal-scrim{position:fixed;inset:0;background:var(--scrim);z-index:200;opacity:0;pointer-events:none;transition:opacity .18s;}
-.export-modal-scrim.show{opacity:1;pointer-events:auto;}
-.export-modal{
-  position:fixed;left:50%;top:50%;transform:translate(-50%,-48%) scale(.97);z-index:201;
-  background:var(--surface);border-radius:var(--radius-md);box-shadow:var(--shadow-pop);
-  width:min(360px,90vw);padding:20px;opacity:0;pointer-events:none;transition:.18s var(--ease);
-}
-.export-modal.open{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto;}
-.export-modal h3{font-size:16px;font-weight:700;margin:0 0 14px;color:var(--text);}
-.export-modal-list{display:flex;flex-direction:column;gap:2px;margin-bottom:16px;}
-.export-modal-row{display:flex;align-items:center;gap:11px;padding:10px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:background .12s;}
-.export-modal-row:hover{background:var(--surface-2);}
-.export-modal-row input[type="checkbox"]{width:17px;height:17px;accent-color:var(--accent);cursor:pointer;flex-shrink:0;}
-.export-modal-row span{font-size:14.5px;color:var(--text);}
-.export-modal-actions{display:flex;justify-content:flex-end;gap:8px;}
 
 
 /* ============ COMPONENTS ============ */
@@ -697,17 +621,6 @@ tr.total:hover td{background:var(--surface-3);}
   <!-- ===== MOBILE TAB BAR ===== -->
   <nav class="tabbar" id="tabbar"></nav>
   <div class="scrim" id="scrim" onclick="UI.closeAll()"></div>
-
-  <!-- ===== EXPORT PAGE PICKER MODAL ===== -->
-  <div class="export-modal-scrim" id="exportModalScrim" onclick="App.closeExportPicker()"></div>
-  <div class="export-modal" id="exportModal">
-    <h3 id="exportModalTitle">เลือกหน้าที่ต้องการ Export</h3>
-    <div class="export-modal-list" id="exportModalList"></div>
-    <div class="export-modal-actions">
-      <button class="ctrl" onclick="App.closeExportPicker()">ยกเลิก</button>
-      <button class="ctrl ctrl-accent" id="exportModalGoBtn" onclick="App.runExportPicker()">Export</button>
-    </div>
-  </div>
 </div>
 
 <template id="__bundler_thumbnail">
@@ -3058,37 +2971,12 @@ const App = {
       ppt:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4M7 8h4a2 2 0 0 1 0 4H7z"/></svg>',
     };
     document.getElementById('popExp').innerHTML=
-      item(I.pdf,'Export PDF','openExportPicker("pdf")')+
-      item(I.img,'Export ภาพ (JPG)','openExportPicker("jpg")')+
+      item(I.pdf,'Export PDF','exportPDF()')+
+      item(I.img,'Export ภาพ (JPG)','exportPNG()')+
       '<div class="pop-sep"></div>'+
       item(I.xls,'Export Excel (.xlsx)','exportXLSX()');
   },
-  openExportPicker(kind){
-    this.closeAll();
-    this._exportKind = kind;
-    const title = kind === 'pdf' ? 'เลือกหน้าที่ต้องการ Export PDF' : 'เลือกหน้าที่ต้องการ Export JPG';
-    document.getElementById('exportModalTitle').textContent = title;
-    document.getElementById('exportModalList').innerHTML = NAV.map(n => `
-      <label class="export-modal-row">
-        <input type="checkbox" value="${n.id}" ${n.id===this.page?'checked':''}>
-        <span>${n.label}</span>
-      </label>`).join('');
-    document.getElementById('exportModal').classList.add('open');
-    document.getElementById('exportModalScrim').classList.add('show');
-  },
-  closeExportPicker(){
-    document.getElementById('exportModal').classList.remove('open');
-    document.getElementById('exportModalScrim').classList.remove('show');
-  },
-  runExportPicker(){
-    const checked = Array.from(document.querySelectorAll('#exportModalList input[type="checkbox"]:checked')).map(c => c.value);
-    if (checked.length === 0) { this.toast('กรุณาเลือกอย่างน้อย 1 หน้า'); return; }
-    const kind = this._exportKind;
-    this.closeExportPicker();
-    if (kind === 'pdf') this.exportPDF(checked);
-    else this.exportPNG(checked);
-  },
-  exportPDF(selectedIds){
+  exportPDF(){
     this.closeAll();
     const ensureLibs = () => new Promise((resolve, reject) => {
       const need = [];
@@ -3105,8 +2993,12 @@ const App = {
       });
     });
 
-    const ids = (selectedIds && selectedIds.length) ? selectedIds : [this.page];
-    const PDF_PAGES = NAV.filter(n => ids.includes(n.id)).map(n => ({id:n.id, label:n.label}));
+    const PDF_PAGES = [
+      {id:'overview', label:'ภาพรวม'},
+      {id:'kpi', label:'KPI'},
+      {id:'regional', label:'ภูมิภาค'},
+      {id:'branches', label:'สาขา'},
+    ];
 
     const waitForCharts = () => new Promise(resolve => setTimeout(resolve, 700));
 
@@ -3139,7 +3031,7 @@ const App = {
     };
 
     const doExport = async () => {
-      this.toast(`กำลังสร้าง PDF (${PDF_PAGES.length} หน้า)…`);
+      this.toast('กำลังสร้าง PDF ทุกหน้า…');
       const prevPage = this.page;
       const { jsPDF } = window.jspdf;
       const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
@@ -3235,67 +3127,28 @@ const App = {
 
     ensureLibs().then(doExport).catch(e => { console.error(e); this.toast(e.message); });
   },
-  exportPNG(selectedIds){
+  exportPNG(){
     this.closeAll();
-    const ensureLib = () => new Promise((resolve, reject) => {
-      if (typeof html2canvas !== 'undefined') { resolve(); return; }
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      s.onload = resolve;
-      s.onerror = () => reject(new Error('โหลด library ไม่ได้ — ตรวจสอบอินเทอร์เน็ต'));
-      document.head.appendChild(s);
-    });
-
-    const ids = (selectedIds && selectedIds.length) ? selectedIds : [this.page];
-    const JPG_PAGES = NAV.filter(n => ids.includes(n.id)).map(n => ({id:n.id, label:n.label}));
-    const waitForCharts = () => new Promise(resolve => setTimeout(resolve, 700));
-
-    const prepBranchesForExport = () => {
-      const fullTableSection = document.getElementById('content')
-        ?.querySelector('.tbl-card .filters')?.closest('.section');
-      if (fullTableSection) fullTableSection.style.display = 'none';
-      return fullTableSection;
-    };
-
-    const doExport = async () => {
-      this.toast(`กำลังสร้างภาพ JPG (${JPG_PAGES.length} หน้า)…`);
-      const prevPage = this.page;
-      try {
-        for (const p of JPG_PAGES) {
-          this.page = p.id;
-          document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p===p.id));
-          document.getElementById('pageTitle').textContent = p.label;
-          this.render();
-          await waitForCharts();
-
-          let hiddenEl = null;
-          if (p.id === 'branches') hiddenEl = prepBranchesForExport();
-
-          const canvas = await html2canvas(this.host, { backgroundColor: '#ffffff', scale: 1.5, useCORS: true });
-
-          if (hiddenEl) hiddenEl.style.display = '';
-
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
-          const fname = `NiM_${p.label}_${TM[this.selMonth]}${this.selYear}.jpg`;
+    const doCapture = () => {
+      this.toast('กำลังสร้างภาพ JPG…');
+      const el = document.querySelector('.page-wrap') || document.querySelector('main') || document.body;
+      const pages = ['','ภาพรวม','KPI','ภูมิภาค','สาขา'];
+      const fname = `NiM_${pages[App.selPage]||'Dashboard'}_${TM[App.selMonth]}${App.selYear}.jpg`;
+      domtoimage.toJpeg(el, { quality: 0.92, bgcolor: '#ffffff' })
+        .then(dataUrl => {
           const a = document.createElement('a');
           a.href = dataUrl; a.download = fname;
           document.body.appendChild(a); a.click(); document.body.removeChild(a);
-          await new Promise(r => setTimeout(r, 200)); // small gap between downloads
-        }
-        this.toast('บันทึกภาพ JPG สำเร็จ ✅');
-      } catch(e) {
-        console.error(e);
-        this.toast('เกิดข้อผิดพลาด: '+(e.message||e));
-      } finally {
-        this.page = prevPage;
-        document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p===prevPage));
-        const n = NAV.find(x=>x.id===prevPage);
-        if (n) document.getElementById('pageTitle').textContent = n.label;
-        this.render();
-      }
+          App.toast('บันทึกภาพ JPG สำเร็จ ✅');
+        })
+        .catch(e => { console.error(e); App.toast('เกิดข้อผิดพลาด: '+e.message); });
     };
-
-    ensureLib().then(doExport).catch(e => { console.error(e); this.toast(e.message); });
+    if (typeof domtoimage !== 'undefined') { doCapture(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/dom-to-image/2.6.0/dom-to-image.min.js';
+    s.onload = doCapture;
+    s.onerror = () => App.toast('โหลด library ไม่ได้ — ตรวจสอบอินเทอร์เน็ต');
+    document.head.appendChild(s);
   },
   exportCSV(){
     this.closeAll();
