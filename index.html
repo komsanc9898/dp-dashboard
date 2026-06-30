@@ -311,6 +311,9 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .pdfpick-thumb.sel img{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
 .pdfpick-thumb .pn{font-size:12px;font-weight:600;color:var(--text-2);}
 .pdfpick-thumb.sel .pn{color:var(--accent);}
+.pdfpick-subbtn{font-size:11px;color:var(--accent);font-weight:600;background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;}
+.pdfpick-subbtn:hover{opacity:.8;}
+.pdfpick-subbadge{font-size:10px;font-weight:700;color:#fff;background:var(--accent);border-radius:99px;padding:1px 7px;margin-left:4px;}
 .pdfpick-foot{padding:16px 20px;border-top:1px solid var(--border);flex-shrink:0;}
 .pdfpick-lbl{font-size:12.5px;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px;}
 .pdfpick-input{width:100%;height:42px;padding:0 13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;}
@@ -700,6 +703,27 @@ tr.total:hover td{background:var(--surface-3);}
       <div class="pdfpick-actions">
         <button class="ctrl" onclick="App.closeJpgPicker()">ยกเลิก</button>
         <button class="ctrl ctrl-accent" id="jpgpickGoBtn" onclick="App.confirmJpgPicker()">ดาวน์โหลด</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== KPI SUB-SECTION PICKER MODAL ===== -->
+  <div class="pdfpick-scrim" id="kpisubScrim" onclick="App.closeKpiSubPicker()"></div>
+  <div class="pdfpick-modal" id="kpisubModal">
+    <div class="pdfpick-head">
+      <h3>เลือกหัวข้อย่อยของ KPI</h3>
+      <button class="pdfpick-close" onclick="App.closeKpiSubPicker()" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="pdfpick-thumbs" id="kpisubThumbs">
+      <div class="pdfpick-loading"><div class="spinner"></div><p>กำลังสร้างภาพตัวอย่าง…</p></div>
+    </div>
+    <div class="pdfpick-foot">
+      <span class="pdfpick-hint" id="kpisubHint"></span>
+      <div class="pdfpick-actions">
+        <button class="ctrl" onclick="App.closeKpiSubPicker()">ยกเลิก</button>
+        <button class="ctrl ctrl-accent" id="kpisubGoBtn" onclick="App.confirmKpiSubPicker()">ใช้รายการนี้</button>
       </div>
     </div>
   </div>
@@ -2045,7 +2069,7 @@ function kpi(){
 
   App.host.innerHTML=`
   <div class="fade-in">
-    <div class="section">
+    <div class="section" data-kpi-sub="01|AB + CC">
       <div class="tbl-card tbl-as-cards">
         <div class="tbl-head"><h3>AB + CC</h3><span class="tag tag-ab">AB</span><span class="tag tag-cc">CC</span><span class="muted" style="font-size:12px">${mn} ${App.selYear}</span></div>
         <div class="tbl-scroll"><table>${tbl(abccRows)}</table></div>
@@ -2053,7 +2077,7 @@ function kpi(){
       </div>
     </div>
 
-    <div class="section">
+    <div class="section" data-kpi-sub="02|YTD สะสม">
       <div class="tbl-card tbl-as-cards">
         <div class="tbl-head"><h3>YTD สะสม</h3><span class="tag tag-ytd">ม.ค.–${mn} ${App.selYear}</span></div>
         <div class="tbl-scroll"><table>${tbl(ytdRows)}</table></div>
@@ -2062,11 +2086,12 @@ function kpi(){
     </div>
 
     <div class="section two-col">
-      ${abccSplitCard('AB · ของแห้ง','tag-ab',C.ab,C.pa_ab,P.ab)}
-      ${abccSplitCard('CC · ของเย็น','tag-cc',C.cc,C.pa_cc,P.cc)}
+      <div data-kpi-sub="03|AB · ของแห้ง">${abccSplitCard('AB · ของแห้ง','tag-ab',C.ab,C.pa_ab,P.ab)}</div>
+      <div data-kpi-sub="04|CC · ของเย็น">${abccSplitCard('CC · ของเย็น','tag-cc',C.cc,C.pa_cc,P.cc)}</div>
     </div>
 
     <div class="section two-col">
+      <div data-kpi-sub="05|พื้นที่">
       <div class="tbl-card tbl-as-cards">
         <div class="tbl-head"><h3>พื้นที่</h3><span class="muted" style="font-size:12px">${mn} ${App.selYear}</span></div>
         <div class="tbl-scroll"><table>
@@ -2080,6 +2105,8 @@ function kpi(){
           ${areaMrow('กทม.',bkkDp,bkkPa,bkkA)}${areaMrow('ตจว.',upcDp,upcPa,upcA)}
         </div>
       </div>
+      </div>
+      <div data-kpi-sub="06|รายได้ตามระดับ (Tier)">
       <div class="tbl-card tbl-as-cards">
         <div class="tbl-head"><h3>รายได้ตามระดับ (Tier)</h3></div>
         <div class="tbl-scroll"><table>
@@ -2088,15 +2115,14 @@ function kpi(){
             <tr class="total"><td>รวม</td><td>${tier.reduce((s,t)=>s+t.count,0)}</td><td>${fmtM(tt)}</td><td>100%</td></tr></tbody></table></div>
         <div class="mrows">${tier.map(t=>`<div class="mrow"><div class="mrow-top"><span class="mrow-title">${t.label}</span><span class="chip neu">${tt?Math.round(t.total/tt*100):0}%</span></div><div class="mrow-kv"><div class="mkv"><span class="k">จำนวน DP</span><span class="v">${t.count}</span></div><div class="mkv"><span class="k">รายได้รวม</span><span class="v">${fmtM(t.total)}</span></div></div></div>`).join('')}</div>
       </div>
+      </div>
     </div>
 
     ${yearlyTables()}
-    ${dpNewRateChart()}
-    ${dpNewRateTable()}
-    ${dpOpenCloseChart()}
-    ${dpOpenCloseTable()}
+    <div data-kpi-sub="09|อัตราการเปิด Drop Point">${dpNewRateChart()}${dpNewRateTable()}</div>
+    <div data-kpi-sub="10|จำนวน DP เปิด-ปิด">${dpOpenCloseChart()}${dpOpenCloseTable()}</div>
     ${yodkaiSadomChart()}
-    ${areaSummarySection()}
+    <div data-kpi-sub="14|สรุปยอดขาย DP แยกพื้นที่">${areaSummarySection()}</div>
   </div>`;
 
   (function buildWhenReady(tries){
@@ -2160,7 +2186,7 @@ function yearlyTables(){
     return `<div class="tbl-scroll"><table><thead><tr><th>เดือน</th><th>กทม.</th><th>ตจว.</th><th>PA</th><th>Act</th><th>%Act</th></tr></thead><tbody>${rows}<tr class="total"><td>รวม</td><td>${fmt(t.bkk||0)}</td><td>${fmt(t.upc||0)}</td><td>${fmt(t.pa||0)}</td><td>${fmt(t.act||0)}</td><td class="${tc}">${t.pct||0}%</td></tr></tbody></table></div>`;
   };
   return `
-  <div class="section">
+  <div class="section" data-kpi-sub="07|ยอดขายรายเดือนทั้งปี">
     <div class="tbl-card">
       <div class="tbl-head" style="justify-content:space-between"><h3>ยอดขายรายเดือนทั้งปี ${App.selYear}</h3>
         <div class="subtabs" data-grp="kyr"><button class="subtab on" onclick="App.subtab(this,'kyr','abcc')">AB+CC</button><button class="subtab" onclick="App.subtab(this,'kyr','ab')">AB</button><button class="subtab" onclick="App.subtab(this,'kyr','cc')">CC</button></div></div>
@@ -2169,7 +2195,7 @@ function yearlyTables(){
       <div data-tab="kyr-cc" hidden>${yblock(D.yearly.cc)}</div>
     </div>
   </div>
-  <div class="section">
+  <div class="section" data-kpi-sub="08|สรุปรายเดือน PA vs Act">
     <div class="tbl-card">
       <div class="tbl-head" style="justify-content:space-between"><h3>สรุปรายเดือน PA vs Act</h3>
         <div class="subtabs" data-grp="ksm"><button class="subtab on" onclick="App.subtab(this,'ksm','abcc')">AB+CC</button><button class="subtab" onclick="App.subtab(this,'ksm','ab')">AB</button><button class="subtab" onclick="App.subtab(this,'ksm','cc')">CC</button></div></div>
@@ -2639,8 +2665,9 @@ function yodkaiSadomSection(kind, title){
   const sumPa=D.pa.reduce((s,v)=>s+v,0), sumAct=D.act.reduce((s,v)=>s+v,0);
   const sumPct = sumPa? Math.round(sumAct/sumPa*1000)/10 : 0;
   const totalRow = `<tr class="total"><td>รวม</td><td>${fmt(sumPa)}</td><td>${fmt(sumAct)}</td><td class="${sumPct>=100?'pos':'neg'}">${sumPct}%</td></tr>`;
+  const subIdMap = {t:'11', ab:'12', cc:'13'};
   return `
-  <div class="section">
+  <div class="section" data-kpi-sub="${subIdMap[kind]}|${title}">
     <div class="tbl-card" style="padding:22px;">
       <h3 style="margin:0 0 14px;">${title} ${App.selYear}</h3>
       <div class="two-col" style="display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start;">
@@ -3452,6 +3479,7 @@ const App = {
   /* ---- JPG page picker (preview thumbnails, click to toggle, multi-download) ---- */
   openJpgPicker(){
     this._jpgPickSelected = new Set(this._jpgPickShots.map(s => s.id));
+    if (!this._kpiSubSelected) this._kpiSubSelected = new Set(); // independent of the main 4-page picker
 
     const modal = document.getElementById('jpgpickModal');
     const scrim = document.getElementById('jpgpickScrim');
@@ -3468,7 +3496,19 @@ const App = {
       lbl.textContent = shot.label;
       wrap.appendChild(img);
       wrap.appendChild(lbl);
-      wrap.addEventListener('click', () => this.toggleJpgPickPage(shot.id));
+      wrap.addEventListener('click', (ev) => {
+        if (ev.target.closest('.pdfpick-subbtn')) return; // let the sub-picker link handle its own click
+        this.toggleJpgPickPage(shot.id);
+      });
+      if (shot.id === 'kpi') {
+        const subBtn = document.createElement('button');
+        subBtn.type = 'button';
+        subBtn.className = 'pdfpick-subbtn';
+        subBtn.id = 'kpiSubLink';
+        subBtn.textContent = 'แยกตามหัวข้อย่อย';
+        subBtn.addEventListener('click', (ev) => { ev.stopPropagation(); this.openKpiSubPicker(); });
+        wrap.appendChild(subBtn);
+      }
       thumbsEl.appendChild(wrap);
     });
 
@@ -3486,19 +3526,141 @@ const App = {
     document.querySelectorAll('#jpgpickThumbs .pdfpick-thumb').forEach(el => {
       el.classList.toggle('sel', this._jpgPickSelected.has(el.dataset.id));
     });
+    const subLink = document.getElementById('kpiSubLink');
+    if (subLink) {
+      const n = this._kpiSubSelected ? this._kpiSubSelected.size : 0;
+      subLink.innerHTML = 'แยกตามหัวข้อย่อย' + (n ? `<span class="pdfpick-subbadge">${n}</span>` : '');
+    }
     const hint = document.getElementById('jpgpickHint');
     const n = this._jpgPickSelected.size;
-    hint.textContent = n ? `เลือก ${n} จาก ${total} หน้า` : `คลิกภาพตัวอย่างเพื่อเลือกหน้า (ทั้งหมด ${total} หน้า)`;
+    const subN = this._kpiSubSelected ? this._kpiSubSelected.size : 0;
+    const subTxt = subN ? ` + หัวข้อย่อย KPI ${subN} รายการ` : '';
+    hint.textContent = (n || subN) ? `เลือก ${n} จาก ${total} หน้า${subTxt}` : `คลิกภาพตัวอย่างเพื่อเลือกหน้า (ทั้งหมด ${total} หน้า)`;
   },
   closeJpgPicker(){
     document.getElementById('jpgpickModal').classList.remove('open');
     document.getElementById('jpgpickScrim').classList.remove('show');
     this._jpgPickShots = null;
+    this._kpiSubSelected = null;
+    this._kpiSubShots = null;
   },
+
+  /* ---- KPI sub-section picker (split the KPI JPG by heading) ---- */
+  async openKpiSubPicker(){
+    const modal = document.getElementById('kpisubModal');
+    const scrim = document.getElementById('kpisubScrim');
+    const thumbsEl = document.getElementById('kpisubThumbs');
+    thumbsEl.innerHTML = '<div class="pdfpick-loading"><div class="spinner"></div><p>กำลังสร้างภาพตัวอย่าง…</p></div>';
+    modal.classList.add('open');
+    scrim.classList.add('show');
+
+    if (this._kpiSubShots) { this.renderKpiSubThumbs(); return; } // already captured this export session
+
+    const prevPage = this.page;
+    try {
+      this.page = 'kpi';
+      document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p==='kpi'));
+      document.getElementById('pageTitle').textContent = 'KPI';
+      this.render();
+      await new Promise(r => setTimeout(r, 700));
+
+      const canvas = await html2canvas(this.host, { backgroundColor: '#ffffff', scale: 1.5, useCORS: true });
+      const hostRect = this.host.getBoundingClientRect();
+      const scaleX = canvas.width / hostRect.width;
+      const scaleY = canvas.height / hostRect.height;
+
+      const subEls = Array.from(document.querySelectorAll('[data-kpi-sub]'));
+      const shots = subEls.map(el => {
+        const [id, label] = el.dataset.kpiSub.split('|');
+        const r = el.getBoundingClientRect();
+        const sx = Math.max(0, (r.left - hostRect.left) * scaleX);
+        const sy = Math.max(0, (r.top - hostRect.top) * scaleY);
+        const sw = Math.min(canvas.width - sx, r.width * scaleX);
+        const sh = Math.min(canvas.height - sy, r.height * scaleY);
+        if (sw <= 0 || sh <= 0) return null;
+        const c = document.createElement('canvas');
+        c.width = sw; c.height = sh;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, sw, sh);
+        ctx.drawImage(canvas, sx, sy, sw, sh, 0, 0, sw, sh);
+        return { id, label, dataUrl: c.toDataURL('image/jpeg', 0.92) };
+      }).filter(Boolean);
+
+      this._kpiSubShots = shots;
+      this.renderKpiSubThumbs();
+    } catch(e) {
+      console.error(e);
+      thumbsEl.innerHTML = `<div class="pdfpick-loading"><p>สร้างภาพตัวอย่างไม่สำเร็จ: ${e.message||e}</p></div>`;
+    } finally {
+      this.page = prevPage;
+      document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p===prevPage));
+      const n = NAV.find(x=>x.id===prevPage);
+      if (n) document.getElementById('pageTitle').textContent = n.label;
+      this.render();
+    }
+  },
+  renderKpiSubThumbs(){
+    if (!this._kpiSubSelected) this._kpiSubSelected = new Set();
+    const thumbsEl = document.getElementById('kpisubThumbs');
+    thumbsEl.innerHTML = '';
+    this._kpiSubShots.forEach(shot => {
+      const wrap = document.createElement('div');
+      wrap.className = 'pdfpick-thumb';
+      wrap.dataset.id = shot.id;
+      wrap.classList.toggle('sel', this._kpiSubSelected.has(shot.id));
+      const img = document.createElement('img');
+      img.src = shot.dataUrl;
+      const lbl = document.createElement('span');
+      lbl.className = 'pn';
+      lbl.textContent = shot.label;
+      wrap.appendChild(img);
+      wrap.appendChild(lbl);
+      wrap.addEventListener('click', () => this.toggleKpiSubPage(shot.id));
+      thumbsEl.appendChild(wrap);
+    });
+    this.syncKpiSubUI();
+  },
+  toggleKpiSubPage(id){
+    if (this._kpiSubSelected.has(id)) this._kpiSubSelected.delete(id);
+    else this._kpiSubSelected.add(id);
+    this.syncKpiSubUI();
+  },
+  syncKpiSubUI(){
+    const total = this._kpiSubShots ? this._kpiSubShots.length : 0;
+    document.querySelectorAll('#kpisubThumbs .pdfpick-thumb').forEach(el => {
+      el.classList.toggle('sel', this._kpiSubSelected.has(el.dataset.id));
+    });
+    const hint = document.getElementById('kpisubHint');
+    const n = this._kpiSubSelected.size;
+    hint.textContent = n ? `เลือก ${n} จาก ${total} หัวข้อ` : `คลิกภาพตัวอย่างเพื่อเลือกหัวข้อ (ทั้งหมด ${total} หัวข้อ)`;
+  },
+  closeKpiSubPicker(){
+    document.getElementById('kpisubModal').classList.remove('open');
+    document.getElementById('kpisubScrim').classList.remove('show');
+  },
+  confirmKpiSubPicker(){
+    this.closeKpiSubPicker();
+    this.syncJpgPickUI(); // update the badge/hint on the main JPG picker behind it
+  },
+  async downloadKpiSubSelections(){
+    if (!this._kpiSubShots || !this._kpiSubSelected || !this._kpiSubSelected.size) return;
+    const selected = this._kpiSubShots.filter(s => this._kpiSubSelected.has(s.id));
+    for (const shot of selected) {
+      const safeLabel = shot.label.replace(/[·+()]/g, ' ').replace(/\s+/g, '_').replace(/_+/g,'_').replace(/^_|_$/g,'');
+      const fname = `${shot.id}_${safeLabel}_${TM[this.selMonth]}${this.selYear}.jpg`;
+      const a = document.createElement('a');
+      a.href = shot.dataUrl; a.download = fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      await new Promise(r => setTimeout(r, 200));
+    }
+  },
+
   async confirmJpgPicker(){
     const hint = document.getElementById('jpgpickHint');
     const selectedShots = this._jpgPickShots.filter(s => this._jpgPickSelected.has(s.id));
-    if (!selectedShots.length) { hint.textContent = 'กรุณาเลือกอย่างน้อย 1 หน้า'; hint.classList.add('err'); return; }
+    const subCount = this._kpiSubSelected ? this._kpiSubSelected.size : 0;
+    if (!selectedShots.length && !subCount) { hint.textContent = 'กรุณาเลือกอย่างน้อย 1 หน้า'; hint.classList.add('err'); return; }
 
     const btn = document.getElementById('jpgpickGoBtn');
     const origLabel = btn.textContent;
@@ -3511,7 +3673,11 @@ const App = {
         document.body.appendChild(a); a.click(); document.body.removeChild(a);
         await new Promise(r => setTimeout(r, 200)); // small gap between downloads
       }
-      this.toast(`บันทึกภาพ JPG สำเร็จ (${selectedShots.length} หน้า) ✅`);
+      if (subCount) {
+        await this.downloadKpiSubSelections();
+      }
+      const totalCount = selectedShots.length + subCount;
+      this.toast(`บันทึกภาพ JPG สำเร็จ (${totalCount} ไฟล์) ✅`);
       this.closeJpgPicker();
     } catch(e) {
       console.error(e);
