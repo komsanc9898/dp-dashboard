@@ -2975,7 +2975,157 @@ const App = {
       '<div class="pop-sep"></div>'+
       item(I.xls,'Export Excel (.xlsx)','exportXLSX()');
   },
-  exportPDF(){ this.closeAll(); window.print(); },
+  exportPDF(){
+    this.closeAll();
+    const ensureLibs = () => new Promise((resolve, reject) => {
+      const need = [];
+      if (typeof html2canvas === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+      if (typeof window.jspdf === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      if (need.length === 0) { resolve(); return; }
+      let remaining = need.length;
+      need.forEach(src => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = () => { remaining--; if (remaining === 0) resolve(); };
+        s.onerror = () => reject(new Error('โหลด library ไม่ได้ — ตรวจสอบอินเทอร์เน็ต'));
+        document.head.appendChild(s);
+      });
+    });
+
+    const PDF_PAGES = [
+      {id:'overview', label:'ภาพรวม'},
+      {id:'kpi', label:'KPI'},
+      {id:'regional', label:'ภูมิภาค'},
+      {id:'branches', label:'สาขา'},
+    ];
+
+    const waitForCharts = () => new Promise(resolve => setTimeout(resolve, 700));
+
+    const prepBranchesForExport = () => {
+      // PDF export of "สาขา" includes Top10 + low-performer summaries only,
+      // not the full searchable all-branches table (can be hundreds of rows).
+      const fullTableSection = document.getElementById('content')
+        ?.querySelector('.tbl-card .filters')?.closest('.section');
+      if (fullTableSection) fullTableSection.style.display = 'none';
+      return fullTableSection;
+    };
+
+    const makeHeaderImg = (text, widthPx) => {
+      // jsPDF's built-in font has no Thai glyphs, so render the header
+      // text on a canvas (using the browser's own font/Thai support)
+      // and embed it as an image instead of calling pdf.text() directly.
+      const c = document.createElement('canvas');
+      const scale = 3;
+      c.width = widthPx * scale;
+      c.height = 30 * scale;
+      const ctx = c.getContext('2d');
+      ctx.scale(scale, scale);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, widthPx, 30);
+      ctx.fillStyle = '#141414';
+      ctx.font = '600 20px Anuphan, "IBM Plex Sans Thai", Sarabun, system-ui, sans-serif';
+      ctx.textBaseline = 'top';
+      ctx.fillText(text, 0, 2);
+      return c.toDataURL('image/png');
+    };
+
+    const doExport = async () => {
+      this.toast('กำลังสร้าง PDF ทุกหน้า…');
+      const prevPage = this.page;
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 8;
+      const headerH = 7;
+      const usableW = pageW - margin * 2;
+      const usableH = pageH - margin * 2 - headerH;
+      const minSliceMm = 25; // avoid near-empty trailing pages
+      let firstPage = true;
+
+      try {
+        for (let i = 0; i < PDF_PAGES.length; i++) {
+          const p = PDF_PAGES[i];
+          this.page = p.id;
+          document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p===p.id));
+          document.getElementById('pageTitle').textContent = p.label;
+          this.render();
+          await waitForCharts();
+
+          let hiddenEl = null;
+          if (p.id === 'branches') hiddenEl = prepBranchesForExport();
+
+          const canvas = await html2canvas(this.host, { backgroundColor: '#ffffff', scale: 1.5, useCORS: true });
+
+          if (hiddenEl) hiddenEl.style.display = '';
+
+          // Slice the tall captured canvas into A4-sized chunks so long
+          // pages (e.g. KPI with several stacked charts) span multiple
+          // PDF pages instead of being squeezed onto one. If the final
+          // chunk would be very short, rebalance it with the previous
+          // chunk (split remaining height evenly) instead of leaving a
+          // near-empty trailing page.
+          const pxPerMm = canvas.width / usableW;
+          const sliceHeightPx = Math.floor(usableH * pxPerMm);
+          const minSlicePx = minSliceMm * pxPerMm;
+          const offsets = [];
+          let remaining = canvas.height;
+          while (remaining > 0) {
+            if (remaining <= sliceHeightPx) {
+              offsets.push(remaining);
+              remaining = 0;
+            } else if (remaining - sliceHeightPx < minSlicePx) {
+              // next chunk would be tiny — split the remaining height
+              // evenly across this chunk and the next one instead
+              const half = Math.ceil(remaining / 2);
+              offsets.push(half);
+              remaining -= half;
+            } else {
+              offsets.push(sliceHeightPx);
+              remaining -= sliceHeightPx;
+            }
+          }
+
+          let sliceY = 0;
+          for (let sIdx = 0; sIdx < offsets.length; sIdx++) {
+            const thisSliceH = Math.min(offsets[sIdx], canvas.height - sliceY);
+            const sliceCanvas = document.createElement('canvas');
+            sliceCanvas.width = canvas.width;
+            sliceCanvas.height = thisSliceH;
+            const ctx = sliceCanvas.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, sliceCanvas.width, sliceCanvas.height);
+            ctx.drawImage(canvas, 0, sliceY, canvas.width, thisSliceH, 0, 0, canvas.width, thisSliceH);
+            const sliceDataUrl = sliceCanvas.toDataURL('image/jpeg', 0.88);
+            const sliceDrawH = thisSliceH / pxPerMm;
+
+            if (!firstPage) pdf.addPage();
+            firstPage = false;
+            const pageLabel = sIdx === 0 ? p.label : `${p.label} (ต่อ)`;
+            const headerText = `Drop Point Dashboard · ${pageLabel} · ${TM[this.selMonth]} ${this.selYear}`;
+            const headerImg = makeHeaderImg(headerText, usableW * 4);
+            pdf.addImage(headerImg, 'PNG', margin, margin - 3, usableW, 7);
+            pdf.addImage(sliceDataUrl, 'JPEG', margin, margin + headerH, usableW, sliceDrawH);
+
+            sliceY += thisSliceH;
+          }
+        }
+        pdf.save(`NiM_DropPoint_Dashboard_${TM[this.selMonth]}${this.selYear}.pdf`);
+        this.toast('บันทึก PDF สำเร็จ ✅');
+      } catch(e) {
+        console.error(e);
+        this.toast('เกิดข้อผิดพลาด: '+(e.message||e));
+      } finally {
+        this.page = prevPage;
+        document.querySelectorAll('[data-p]').forEach(el=>el.classList.toggle('active', el.dataset.p===prevPage));
+        const n = NAV.find(x=>x.id===prevPage);
+        if (n) document.getElementById('pageTitle').textContent = n.label;
+        this.render();
+      }
+    };
+
+    ensureLibs().then(doExport).catch(e => { console.error(e); this.toast(e.message); });
+  },
   exportPNG(){
     this.closeAll();
     const doCapture = () => {
