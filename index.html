@@ -11,15 +11,33 @@
 /* ============ GLOBAL ERROR SAFETY NET ============
    If a critical script fails to parse/run (e.g. a network filter or
    unstable WiFi truncates a CDN file mid-download, producing something
-   like "Unexpected end of input"), show a clear recovery message
-   instead of leaving the user on a silently broken/blank page. */
+   like "Unexpected end of input"), silently auto-retry once (a fresh
+   reload usually succeeds since it's a one-off network hiccup, not a
+   persistent block). If the retry also fails, show a clear recovery
+   message instead of leaving the user on a silently broken/blank page. */
 (function(){
   let shown = false;
+  const RETRY_KEY = 'dp_dashboard_autoretry';
   window.addEventListener('error', function(e){
     if (shown) return;
     // Only react to script errors, not e.g. image 404s.
     if (e.target && e.target !== window) return;
     shown = true;
+
+    let alreadyRetried = false;
+    try { alreadyRetried = sessionStorage.getItem(RETRY_KEY) === '1'; } catch(err){}
+
+    if (!alreadyRetried) {
+      try { sessionStorage.setItem(RETRY_KEY, '1'); } catch(err){}
+      location.reload();
+      return;
+    }
+
+    // Already retried once and still broken — clear the flag so the
+    // next manual reload gets a fresh auto-retry attempt too, then
+    // show the recovery message for the user to act on.
+    try { sessionStorage.removeItem(RETRY_KEY); } catch(err){}
+
     const div = document.createElement('div');
     div.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0f1f3a;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;';
     div.innerHTML = '<div style="background:#fff;border-radius:16px;padding:2rem;max-width:420px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.35);">' +
@@ -29,6 +47,14 @@
       '</div>';
     document.body ? document.body.appendChild(div) : document.addEventListener('DOMContentLoaded', ()=>document.body.appendChild(div));
   }, true);
+
+  // A fully successful load means the previous attempt (if any) is no
+  // longer relevant — clear the retry flag so a future genuine failure
+  // gets its own fresh auto-retry rather than skipping straight to the
+  // manual message.
+  window.addEventListener('load', function(){
+    try { sessionStorage.removeItem(RETRY_KEY); } catch(err){}
+  });
 })();
 </script>
 <script>
