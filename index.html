@@ -462,6 +462,8 @@ tr.total:hover td{background:var(--surface-3);}
   .tab-i[data-p="kpi"] svg{color:#f59e0b;opacity:.55;}
   .tab-i[data-p="regional"] svg{color:#06b6d4;opacity:.55;}
   .tab-i[data-p="branches"] svg{color:#ef4444;opacity:.55;}
+  .tab-i-logout svg{color:#dc2626;opacity:.55;}
+  .tab-i-logout:active{opacity:.7;}
   .tab-i.active{color:var(--accent);}
   .tab-i.active svg{color:var(--accent);opacity:1;}
   /* desktop tables → hide, show mobile cards */
@@ -2865,7 +2867,8 @@ const App = {
   },
   buildTabbar(){
     document.getElementById('tabbar').innerHTML =
-      NAV.map(n=>`<button class="tab-i ${n.id===this.page?'active':''}" data-p="${n.id}" onclick="App.go('${n.id}')">${n.icon}<span>${n.label}</span></button>`).join('');
+      NAV.map(n=>`<button class="tab-i ${n.id===this.page?'active':''}" data-p="${n.id}" onclick="App.go('${n.id}')">${n.icon}<span>${n.label}</span></button>`).join('')+
+      `<button class="tab-i tab-i-logout" onclick="AuthGate.logout()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg><span>ออก</span></button>`;
   },
 
   go(id){
