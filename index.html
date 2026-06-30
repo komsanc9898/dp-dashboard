@@ -8,18 +8,35 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script>
-/* ============ GLOBAL ERROR SAFETY NET ============
-   If a critical script fails to parse/run (e.g. a network filter or
-   unstable WiFi truncates a CDN file mid-download, producing something
-   like "Unexpected end of input"), silently auto-retry once (a fresh
-   reload usually succeeds since it's a one-off network hiccup, not a
-   persistent block). If the retry also fails, show a clear recovery
-   message instead of leaving the user on a silently broken/blank page. */
+/* ============ GLOBAL ERROR SAFETY NET (initial load only) ============
+   If a critical script fails to parse/run during the very first page
+   load (e.g. a network filter or unstable WiFi truncates a CDN file
+   mid-download, producing something like "Unexpected end of input"),
+   silently auto-retry once (a fresh reload usually succeeds since it's
+   a one-off network hiccup, not a persistent block). If the retry also
+   fails, show a clear recovery message instead of leaving the user on
+   a silently broken/blank page.
+   IMPORTANT: this only watches the initial load window (until the
+   'load' event fires) and disarms itself after that, so it can never
+   misfire later — e.g. from an unrelated runtime error while using a
+   feature like Export — and force an unwanted reload mid-session. */
 (function(){
   let shown = false;
+  let armed = true;
   const RETRY_KEY = 'dp_dashboard_autoretry';
+
+  window.addEventListener('load', function(){
+    // Page finished loading successfully — the safety net's job for
+    // this load is done. Disarm it so later, unrelated runtime errors
+    // (e.g. inside Export) never trigger a surprise reload, and clear
+    // the retry flag so a future genuine initial-load failure gets a
+    // fresh auto-retry of its own.
+    armed = false;
+    try { sessionStorage.removeItem(RETRY_KEY); } catch(err){}
+  });
+
   window.addEventListener('error', function(e){
-    if (shown) return;
+    if (!armed || shown) return;
     // Only react to script errors, not e.g. image 404s.
     if (e.target && e.target !== window) return;
     shown = true;
@@ -47,14 +64,6 @@
       '</div>';
     document.body ? document.body.appendChild(div) : document.addEventListener('DOMContentLoaded', ()=>document.body.appendChild(div));
   }, true);
-
-  // A fully successful load means the previous attempt (if any) is no
-  // longer relevant — clear the retry flag so a future genuine failure
-  // gets its own fresh auto-retry rather than skipping straight to the
-  // manual message.
-  window.addEventListener('load', function(){
-    try { sessionStorage.removeItem(RETRY_KEY); } catch(err){}
-  });
 })();
 </script>
 <script>
