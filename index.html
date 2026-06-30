@@ -492,9 +492,50 @@ tr.total:hover td{background:var(--surface-3);}
   }
 }
 
+/* ============ LOGIN GATE ============ */
+#authGate{position:fixed;inset:0;z-index:9999;background:#0f1f3a;display:flex;align-items:center;justify-content:center;padding:24px;}
+#authGate.hidden{display:none;}
+.auth-card{background:#fff;border-radius:20px;padding:2.5rem 2.25rem;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.35);box-sizing:border-box;}
+.auth-logos{display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:1.5rem;}
+.auth-logos img.al-nim{height:34px;display:block;}
+.auth-logos img.al-seal{height:22px;display:block;}
+.auth-vdiv{width:1px;height:26px;background:#d1d5db;flex-shrink:0;}
+.auth-title{text-align:center;font-size:22px;font-weight:700;margin:0 0 6px;color:#111827;}
+.auth-sub{text-align:center;font-size:13.5px;color:#6b7280;margin:0 0 28px;}
+.auth-label{font-size:13px;font-weight:600;color:#374151;display:block;margin-bottom:6px;margin-top:14px;}
+.auth-label:first-of-type{margin-top:0;}
+.auth-input{width:100%;height:44px;border:1px solid #e5e7eb;border-radius:10px;padding:0 14px;font-size:14px;margin-bottom:8px;box-sizing:border-box;color:#111827;font-family:inherit;}
+.auth-input:focus{outline:none;border-color:#1e3a8a;}
+.auth-error{font-size:12.5px;color:#dc2626;min-height:18px;margin:0 0 12px;}
+.auth-btn{width:100%;height:46px;background:#1e3a8a;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;}
+.auth-btn:hover{background:#1e40af;}
+.auth-btn:active{transform:scale(0.99);}
+@media (max-width:480px){
+  .auth-card{padding:2rem 1.5rem;}
+}
+
 </style>
 </head>
 <body>
+<div id="authGate">
+  <div class="auth-card">
+    <div class="auth-logos">
+      <img class="al-nim" id="authLogoNim" alt="NiM Express">
+      <div class="auth-vdiv"></div>
+      <img class="al-seal" id="authLogoSeal" alt="SEAL Cold Chain">
+    </div>
+    <h1 class="auth-title">Drop Point Dashboard</h1>
+    <p class="auth-sub">กรุณาเข้าสู่ระบบ</p>
+    <form id="authForm" onsubmit="return AuthGate.submit(event)">
+      <label class="auth-label" for="authUser">Username</label>
+      <input class="auth-input" type="text" id="authUser" placeholder="ชื่อผู้ใช้" autocomplete="off">
+      <label class="auth-label" for="authPass">Password</label>
+      <input class="auth-input" type="password" id="authPass" placeholder="รหัสผ่าน" autocomplete="off">
+      <p class="auth-error" id="authError"></p>
+      <button class="auth-btn" type="submit">เข้าสู่ระบบ</button>
+    </form>
+  </div>
+</div>
 <div class="app" id="app">
 
   <!-- ===== SIDEBAR ===== -->
@@ -3101,8 +3142,58 @@ function applyBrandLogos(){
   const b=document.getElementById('logoSeal'); if(b) b.src=LOGO_SEAL_B64;
   const c=document.getElementById('logoNimRail'); if(c) c.src=LOGO_NIM_B64;
   const d=document.getElementById('logoSealRail'); if(d) d.src=LOGO_SEAL_B64;
+  const e=document.getElementById('authLogoNim'); if(e) e.src=LOGO_NIM_B64;
+  const f=document.getElementById('authLogoSeal'); if(f) f.src=LOGO_SEAL_B64;
 }
-document.addEventListener('DOMContentLoaded', ()=>{applyBrandLogos();App.init();});
+
+/* ============ AUTH GATE ============
+   Soft gate only: this is a static site with no backend, so the
+   username/password below are visible to anyone who views the page
+   source. It is meant to keep casual/accidental visitors out, not to
+   provide real security.
+   To change the credentials, edit AUTH_USERNAME / AUTH_PASSWORD and
+   redeploy the file. (Future: support multiple username/password pairs
+   so each person can have their own login.) */
+const AUTH_USERNAME = "Nimexpress";
+const AUTH_PASSWORD = "Droppoint2569";
+const AUTH_STORAGE_KEY = "dp_dashboard_unlocked";
+const AuthGate = {
+  init(){
+    const gate = document.getElementById('authGate');
+    if(!gate) { App.init(); return; }
+    let unlocked = false;
+    try { unlocked = localStorage.getItem(AUTH_STORAGE_KEY) === 'yes'; } catch(e){}
+    if(unlocked){
+      gate.classList.add('hidden');
+      App.init();
+    } else {
+      const input = document.getElementById('authUser');
+      if(input) setTimeout(()=>input.focus(), 50);
+    }
+  },
+  submit(ev){
+    ev.preventDefault();
+    const userInput = document.getElementById('authUser');
+    const passInput = document.getElementById('authPass');
+    const err = document.getElementById('authError');
+    const userVal = userInput ? userInput.value : '';
+    const passVal = passInput ? passInput.value : '';
+    if(userVal === AUTH_USERNAME && passVal === AUTH_PASSWORD){
+      try { localStorage.setItem(AUTH_STORAGE_KEY, 'yes'); } catch(e){}
+      const gate = document.getElementById('authGate');
+      if(gate) gate.classList.add('hidden');
+      if(err) err.textContent = '';
+      App.init();
+    } else {
+      if(err) err.textContent = 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง กรุณาลองใหม่';
+      if(passInput){ passInput.value=''; passInput.focus(); }
+    }
+    return false;
+  }
+};
+window.AuthGate = AuthGate;
+
+document.addEventListener('DOMContentLoaded', ()=>{applyBrandLogos();AuthGate.init();});
 
 </script>
 </body>
