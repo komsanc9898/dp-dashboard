@@ -285,6 +285,44 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 .scrim{position:fixed;inset:0;background:var(--scrim);z-index:100;opacity:0;pointer-events:none;transition:opacity .2s;}
 .scrim.show{opacity:1;pointer-events:auto;}
 
+/* PDF page picker modal */
+.pdfpick-scrim{position:fixed;inset:0;background:var(--scrim);z-index:200;opacity:0;pointer-events:none;transition:opacity .18s;}
+.pdfpick-scrim.show{opacity:1;pointer-events:auto;}
+.pdfpick-modal{
+  position:fixed;left:50%;top:50%;transform:translate(-50%,-48%) scale(.97);z-index:201;
+  background:var(--surface);border-radius:var(--radius-md);box-shadow:var(--shadow-pop);
+  width:min(720px,92vw);max-height:86vh;display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;transition:.18s var(--ease);
+}
+.pdfpick-modal.open{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto;}
+.pdfpick-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 14px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.pdfpick-head h3{font-size:16px;font-weight:700;color:var(--text);}
+.pdfpick-close{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--text-2);flex-shrink:0;}
+.pdfpick-close:hover{background:var(--surface-2);}
+.pdfpick-thumbs{flex:1;min-height:160px;overflow-x:auto;overflow-y:hidden;display:flex;gap:14px;padding:20px;align-items:flex-start;}
+.pdfpick-loading{margin:auto;display:flex;flex-direction:column;align-items:center;gap:12px;color:var(--text-3);font-size:13px;}
+.pdfpick-loading .spinner{width:30px;height:30px;}
+.pdfpick-thumb{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;user-select:none;}
+.pdfpick-thumb img{
+  height:180px;width:auto;border-radius:6px;border:2px solid var(--border);
+  box-shadow:var(--shadow-sm);transition:border-color .12s,box-shadow .12s,opacity .12s;display:block;background:#fff;
+}
+.pdfpick-thumb:hover img{border-color:var(--border-strong);}
+.pdfpick-thumb.sel img{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+.pdfpick-thumb .pn{font-size:12px;font-weight:600;color:var(--text-2);}
+.pdfpick-thumb.sel .pn{color:var(--accent);}
+.pdfpick-foot{padding:16px 20px;border-top:1px solid var(--border);flex-shrink:0;}
+.pdfpick-lbl{font-size:12.5px;font-weight:600;color:var(--text-2);display:block;margin-bottom:6px;}
+.pdfpick-input{width:100%;height:42px;padding:0 13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text);font-size:14px;font-family:inherit;box-sizing:border-box;}
+.pdfpick-input:focus{outline:none;border-color:var(--accent);background:var(--surface);}
+.pdfpick-hint{display:block;font-size:11.5px;color:var(--text-3);margin-top:6px;min-height:15px;}
+.pdfpick-hint.err{color:var(--neg);}
+.pdfpick-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;}
+@media (max-width:560px){
+  .pdfpick-modal{width:94vw;max-height:90vh;}
+  .pdfpick-thumb img{height:130px;}
+}
+
 
 /* ============ COMPONENTS ============ */
 .section{margin-bottom:clamp(18px,2.4vw,26px);}
@@ -621,6 +659,29 @@ tr.total:hover td{background:var(--surface-3);}
   <!-- ===== MOBILE TAB BAR ===== -->
   <nav class="tabbar" id="tabbar"></nav>
   <div class="scrim" id="scrim" onclick="UI.closeAll()"></div>
+
+  <!-- ===== PDF PAGE PICKER MODAL ===== -->
+  <div class="pdfpick-scrim" id="pdfpickScrim" onclick="App.closePdfPicker()"></div>
+  <div class="pdfpick-modal" id="pdfpickModal">
+    <div class="pdfpick-head">
+      <h3>เลือกหน้าที่ต้องการ Export</h3>
+      <button class="pdfpick-close" onclick="App.closePdfPicker()" aria-label="ปิด">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="pdfpick-thumbs" id="pdfpickThumbs">
+      <div class="pdfpick-loading"><div class="spinner"></div><p>กำลังสร้างภาพตัวอย่าง…</p></div>
+    </div>
+    <div class="pdfpick-foot">
+      <label class="pdfpick-lbl" for="pdfpickInput">หน้าที่เลือก</label>
+      <input class="pdfpick-input" id="pdfpickInput" type="text" placeholder="เช่น 1, 3, 5-8" autocomplete="off" oninput="App.onPdfPickInput(this.value)">
+      <span class="pdfpick-hint" id="pdfpickHint"></span>
+      <div class="pdfpick-actions">
+        <button class="ctrl" onclick="App.closePdfPicker()">ยกเลิก</button>
+        <button class="ctrl ctrl-accent" id="pdfpickGoBtn" onclick="App.confirmPdfPicker()">ดาวน์โหลด</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <template id="__bundler_thumbnail">
@@ -2982,6 +3043,8 @@ const App = {
       const need = [];
       if (typeof html2canvas === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
       if (typeof window.jspdf === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+      if (typeof window.pdfjsLib === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js');
+      if (typeof window.PDFLib === 'undefined') need.push('https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js');
       if (need.length === 0) { resolve(); return; }
       let remaining = need.length;
       need.forEach(src => {
@@ -3111,8 +3174,10 @@ const App = {
             sliceY += thisSliceH;
           }
         }
-        pdf.save(`NiM_DropPoint_Dashboard_${TM[this.selMonth]}${this.selYear}.pdf`);
-        this.toast('บันทึก PDF สำเร็จ ✅');
+        const arrayBuffer = pdf.output('arraybuffer');
+        const fname = `NiM_DropPoint_Dashboard_${TM[this.selMonth]}${this.selYear}.pdf`;
+        this.toast('กำลังสร้างภาพตัวอย่าง…');
+        await this.openPdfPicker(arrayBuffer, fname);
       } catch(e) {
         console.error(e);
         this.toast('เกิดข้อผิดพลาด: '+(e.message||e));
@@ -3125,8 +3190,178 @@ const App = {
       }
     };
 
-    ensureLibs().then(doExport).catch(e => { console.error(e); this.toast(e.message); });
+    ensureLibs().then(() => {
+      if (window.pdfjsLib && window.pdfjsLib.GlobalWorkerOptions) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+      return doExport();
+    }).catch(e => { console.error(e); this.toast(e.message); });
   },
+
+  /* ---- PDF page picker (preview thumbnails + page-range download) ---- */
+  async openPdfPicker(arrayBuffer, filename){
+    this._pdfPickBuffer = arrayBuffer;
+    this._pdfPickFilename = filename;
+    this._pdfPickSelected = new Set();
+
+    const modal = document.getElementById('pdfpickModal');
+    const scrim = document.getElementById('pdfpickScrim');
+    const thumbsEl = document.getElementById('pdfpickThumbs');
+    const input = document.getElementById('pdfpickInput');
+    const hint = document.getElementById('pdfpickHint');
+    thumbsEl.innerHTML = '<div class="pdfpick-loading"><div class="spinner"></div><p>กำลังสร้างภาพตัวอย่าง…</p></div>';
+    input.value = '';
+    hint.textContent = '';
+    hint.classList.remove('err');
+    modal.classList.add('open');
+    scrim.classList.add('show');
+    this.toast('');
+
+    try {
+      const loadingTask = window.pdfjsLib.getDocument({ data: arrayBuffer.slice(0) });
+      const pdfDoc = await loadingTask.promise;
+      const numPages = pdfDoc.numPages;
+      this._pdfPickTotal = numPages;
+
+      thumbsEl.innerHTML = '';
+      for (let i = 1; i <= numPages; i++) {
+        const page = await pdfDoc.getPage(i);
+        const viewport = page.getViewport({ scale: 1 });
+        const targetH = 180; // matches .pdfpick-thumb img height in CSS
+        const scale = targetH / viewport.height;
+        const scaledViewport = page.getViewport({ scale });
+        const canvas = document.createElement('canvas');
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+
+        const wrap = document.createElement('div');
+        wrap.className = 'pdfpick-thumb';
+        wrap.dataset.page = i;
+        const img = document.createElement('img');
+        img.src = canvas.toDataURL('image/png');
+        const lbl = document.createElement('span');
+        lbl.className = 'pn';
+        lbl.textContent = i;
+        wrap.appendChild(img);
+        wrap.appendChild(lbl);
+        wrap.addEventListener('click', () => this.togglePdfPickPage(i));
+        thumbsEl.appendChild(wrap);
+      }
+
+      // default: select every page (matches the old "export everything" behavior)
+      for (let i = 1; i <= numPages; i++) this._pdfPickSelected.add(i);
+      this.syncPdfPickUI();
+    } catch(e) {
+      console.error(e);
+      thumbsEl.innerHTML = `<div class="pdfpick-loading"><p>สร้างภาพตัวอย่างไม่สำเร็จ: ${e.message||e}</p></div>`;
+    }
+  },
+  togglePdfPickPage(n){
+    if (this._pdfPickSelected.has(n)) this._pdfPickSelected.delete(n);
+    else this._pdfPickSelected.add(n);
+    this.syncPdfPickUI();
+  },
+  onPdfPickInput(value){
+    const total = this._pdfPickTotal || 0;
+    const hint = document.getElementById('pdfpickHint');
+    const { pages, error } = this.parsePageRange(value, total);
+    if (error) { hint.textContent = error; hint.classList.add('err'); return; }
+    hint.classList.remove('err');
+    this._pdfPickSelected = new Set(pages);
+    document.querySelectorAll('#pdfpickThumbs .pdfpick-thumb').forEach(el => {
+      const n = Number(el.dataset.page);
+      el.classList.toggle('sel', this._pdfPickSelected.has(n));
+    });
+    hint.textContent = pages.length ? `เลือก ${pages.length} จาก ${total} หน้า` : `คลิกภาพตัวอย่างหรือพิมพ์เลขหน้า (ทั้งหมด ${total} หน้า)`;
+  },
+  syncPdfPickUI(){
+    const total = this._pdfPickTotal || 0;
+    document.querySelectorAll('#pdfpickThumbs .pdfpick-thumb').forEach(el => {
+      const n = Number(el.dataset.page);
+      el.classList.toggle('sel', this._pdfPickSelected.has(n));
+    });
+    const sorted = Array.from(this._pdfPickSelected).sort((a,b)=>a-b);
+    document.getElementById('pdfpickInput').value = this.pagesToRangeStr(sorted);
+    const hint = document.getElementById('pdfpickHint');
+    hint.classList.remove('err');
+    hint.textContent = sorted.length ? `เลือก ${sorted.length} จาก ${total} หน้า` : `คลิกภาพตัวอย่างหรือพิมพ์เลขหน้า (ทั้งหมด ${total} หน้า)`;
+  },
+  pagesToRangeStr(sortedPages){
+    if (!sortedPages.length) return '';
+    const parts = [];
+    let start = sortedPages[0], prev = sortedPages[0];
+    for (let i = 1; i <= sortedPages.length; i++){
+      const cur = sortedPages[i];
+      if (cur === prev + 1) { prev = cur; continue; }
+      parts.push(start === prev ? `${start}` : `${start}-${prev}`);
+      if (cur !== undefined) { start = cur; prev = cur; }
+    }
+    return parts.join(', ');
+  },
+  parsePageRange(str, total){
+    const out = new Set();
+    const cleaned = (str||'').trim();
+    if (!cleaned) return { pages: [], error: null };
+    const parts = cleaned.split(',').map(s=>s.trim()).filter(Boolean);
+    for (const part of parts) {
+      const m = part.match(/^(\d+)\s*-\s*(\d+)$/);
+      if (m) {
+        let a = parseInt(m[1],10), b = parseInt(m[2],10);
+        if (a > b) [a,b] = [b,a];
+        if (a < 1 || b > total) return { pages: [], error: `หมายเลขหน้าต้องอยู่ระหว่าง 1-${total}` };
+        for (let n=a; n<=b; n++) out.add(n);
+      } else if (/^\d+$/.test(part)) {
+        const n = parseInt(part,10);
+        if (n < 1 || n > total) return { pages: [], error: `หมายเลขหน้าต้องอยู่ระหว่าง 1-${total}` };
+        out.add(n);
+      } else {
+        return { pages: [], error: `รูปแบบไม่ถูกต้อง: "${part}" (ใช้เช่น 1, 3, 5-8)` };
+      }
+    }
+    return { pages: Array.from(out).sort((a,b)=>a-b), error: null };
+  },
+  closePdfPicker(){
+    document.getElementById('pdfpickModal').classList.remove('open');
+    document.getElementById('pdfpickScrim').classList.remove('show');
+    this._pdfPickBuffer = null;
+  },
+  async confirmPdfPicker(){
+    const input = document.getElementById('pdfpickInput');
+    const hint = document.getElementById('pdfpickHint');
+    const total = this._pdfPickTotal || 0;
+    const { pages, error } = this.parsePageRange(input.value, total);
+    if (error) { hint.textContent = error; hint.classList.add('err'); return; }
+    if (!pages.length) { hint.textContent = 'กรุณาเลือกอย่างน้อย 1 หน้า'; hint.classList.add('err'); return; }
+
+    const btn = document.getElementById('pdfpickGoBtn');
+    const origLabel = btn.textContent;
+    btn.textContent = 'กำลังสร้าง…'; btn.disabled = true;
+    try {
+      const { PDFDocument } = window.PDFLib;
+      const srcDoc = await PDFDocument.load(this._pdfPickBuffer.slice(0));
+      const newDoc = await PDFDocument.create();
+      const zeroIdx = pages.map(p => p - 1);
+      const copied = await newDoc.copyPages(srcDoc, zeroIdx);
+      copied.forEach(p => newDoc.addPage(p));
+      const bytes = await newDoc.save();
+      const blob = new Blob([bytes], { type: 'application/pdf' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = this._pdfPickFilename || 'export.pdf';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      this.toast(`บันทึก PDF สำเร็จ (${pages.length} หน้า) ✅`);
+      this.closePdfPicker();
+    } catch(e) {
+      console.error(e);
+      hint.textContent = 'เกิดข้อผิดพลาด: '+(e.message||e);
+      hint.classList.add('err');
+    } finally {
+      btn.textContent = origLabel; btn.disabled = false;
+    }
+  },
+
   exportPNG(){
     this.closeAll();
     const doCapture = () => {
