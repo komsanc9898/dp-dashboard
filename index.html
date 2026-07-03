@@ -1196,6 +1196,12 @@ function shBuildMaster(paWb, actWb){
   }
   parsePA('PA AB69','pa_ab');
   parsePA('PA CC69','pa_cc');
+  // Corrected PA figures for เดือน 7-12 (ก.ค.-ธ.ค. '69) live in separate tabs in the same
+  // file. Same header layout as above, just fewer month columns — parsePA only touches the
+  // month columns it actually finds in each tab, so this patches ก.ค.-ธ.ค. on top of the
+  // base tabs above without disturbing ม.ค.-มิ.ย.
+  parsePA("PA AB 7-12'69",'pa_ab');
+  parsePA("PA CC 7-12'69",'pa_cc');
 
   // ---- File 2 (Actual): per-DP monthly revenue/bills/pieces ----
   function classifyTab(sn){
@@ -1797,20 +1803,18 @@ function buildKpiWorkbook(MONTH, YEAR){
         else paByMonth.push(sum(ALL, d=>d.pa_cc[m]||0));
       }
       let totBkk=0, totUpc=0, totPa=0, totAct=0;
-      for(let m=0;m<12;m++){
-        if(m < MONTH){
-          const mActive = ALL.filter(d=> ((d.act69_ab[m]||0)+(d.act69_cc[m]||0)) > 0);
-          const mval = items => kind==='ab'? sum(items,d=>d.act69_ab[m]||0) : kind==='cc'? sum(items,d=>d.act69_cc[m]||0) : sum(items,d=>(d.act69_ab[m]||0)+(d.act69_cc[m]||0));
-          const bkk_v = mval(mActive.filter(d=>d.phak==='กทม.'));
-          const upc_v = mval(mActive.filter(d=>d.phak!=='กทม.'));
-          const act_v = bkk_v+upc_v, pa_v = paByMonth[m];
-          const pct = pa_v? act_v/pa_v : 0;
-          dataRow(sh, r, [TM[m+1], bkk_v, upc_v, pa_v, act_v, pct, act_v-pa_v], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT]);
-          totBkk+=bkk_v; totUpc+=upc_v; totPa+=pa_v; totAct+=act_v;
-        } else {
-          dataRow(sh, r, [TM[m+1], null, null, paByMonth[m], null, null, null], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT]);
-          totPa += paByMonth[m];
-        }
+      // Only rows for months that actually have Act data (m < MONTH) — future months
+      // aren't rendered at all, and their PA target isn't folded into the Total either,
+      // so % Act reflects performance-to-date instead of being diluted by unstarted months.
+      for(let m=0;m<MONTH;m++){
+        const mActive = ALL.filter(d=> ((d.act69_ab[m]||0)+(d.act69_cc[m]||0)) > 0);
+        const mval = items => kind==='ab'? sum(items,d=>d.act69_ab[m]||0) : kind==='cc'? sum(items,d=>d.act69_cc[m]||0) : sum(items,d=>(d.act69_ab[m]||0)+(d.act69_cc[m]||0));
+        const bkk_v = mval(mActive.filter(d=>d.phak==='กทม.'));
+        const upc_v = mval(mActive.filter(d=>d.phak!=='กทม.'));
+        const act_v = bkk_v+upc_v, pa_v = paByMonth[m];
+        const pct = pa_v? act_v/pa_v : 0;
+        dataRow(sh, r, [TM[m+1], bkk_v, upc_v, pa_v, act_v, pct, act_v-pa_v], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT]);
+        totBkk+=bkk_v; totUpc+=upc_v; totPa+=pa_v; totAct+=act_v;
         r++;
       }
       const totPct = totPa? totAct/totPa : 0;
