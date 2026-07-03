@@ -1230,11 +1230,12 @@ function shBuildMaster(paWb, actWb){
   parsePA('PA AB69','pa_ab');
   parsePA('PA CC69','pa_cc');
   // Corrected PA figures for เดือน 7-12 (ก.ค.-ธ.ค. '69) live in separate tabs in the same
-  // file. Same header layout as above, just fewer month columns — parsePA only touches the
+  // file. Confirmed exact tab names from the actual exported workbook: no apostrophe.
+  // Same header layout as above, just fewer month columns — parsePA only touches the
   // month columns it actually finds in each tab, so this patches ก.ค.-ธ.ค. on top of the
   // base tabs above without disturbing ม.ค.-มิ.ย.
-  parsePA("PA AB 7-12'69",'pa_ab');
-  parsePA("PA CC 7-12'69",'pa_cc');
+  parsePA('PA AB 7-1269','pa_ab');
+  parsePA('PA CC 7-1269','pa_cc');
 
   // ---- File 2 (Actual): per-DP monthly revenue/bills/pieces ----
   function classifyTab(sn){
