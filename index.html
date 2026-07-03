@@ -1002,7 +1002,19 @@ function shNormBranch(s){
     .replace(/[\s.\-_/'’"]/g,'')
     .trim();
 }
-function shKey(dc,dp){ return shNormBranch(dp) || ('#'+shNormDC(dc)+'|'+String(dp||'').toLowerCase()); }
+function shKey(dc,dp){
+  // Branches are keyed by DC + normalized branch name together, not branch name alone.
+  // (Previously this used branch-name-only, on the assumption DC spelling could differ
+  // between the PA and Actual files — but that let two DIFFERENT real branches under
+  // different DCs that happen to share a name (e.g. "บึงสามพัน" served by both
+  // DC เพชรบูรณ์ and DC วิเชียรบุรี) silently merge into one record, with the second
+  // row's PA/Act values overwriting the first's. Any genuine PA/Actual DC-spelling
+  // mismatch for the same branch now surfaces in the "unmatched_actual_dp" diagnostic
+  // instead of silently losing revenue.)
+  const nb = shNormBranch(dp);
+  const nd = shNormDC(dc);
+  return nb ? (nd+'::'+nb) : ('#'+nd+'|'+String(dp||'').toLowerCase());
+}
 const z12 = ()=>[0,0,0,0,0,0,0,0,0,0,0,0];
 
 function shBuildMaster(paWb, actWb){
@@ -1027,7 +1039,12 @@ function shBuildMaster(paWb, actWb){
         act69_cc:z12(), act69_cc_bill:z12(), act69_cc_pcs:z12(),
         act68_ab:z12(), act68_cc:z12()};
       byKey.set(k,o);
-    } else if(o.dc && dc && shNormDC(o.dc)!==shNormDC(dc)){
+    } else if(o.dp && dp && String(o.dp).trim()!==String(dp).trim()){
+      // Same key, but the raw branch name text actually differs — either a different DC
+      // (see note above) or two same-DC branches whose names differ only inside
+      // parentheses (e.g. "...มหาชัย" vs "...มหาชัย (นิ่มสี่เซ็ง)"), which normalization
+      // strips away. Either way this row's data will overwrite the existing record's, so
+      // flag it instead of losing it silently.
       keyCollisions.push({key:k, existing:{dc:o.dc,dp:o.dp}, incoming:{dc,dp}});
     }
     if(!o.dc && dc) o.dc=dc;
