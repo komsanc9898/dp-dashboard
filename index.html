@@ -2181,12 +2181,14 @@ function yearlyTables(){
     </tbody></table></div>`;
   };
   const sblock=data=>{
-    // Only show/calculate months through the latest month that actually has Act data —
-    // months after that haven't happened yet, so don't render or fold them into the total.
-    const lm=(typeof LATEST_MONTH!=='undefined'&&LATEST_MONTH)?LATEST_MONTH:12;
-    const rows=Array.from({length:lm},(_,i)=>{const r=data[i+1]||{};const c=r.pct>=100?'pos':'neg';return `<tr><td>${TMA[i]}</td><td>${fmt(r.bkk||0)}</td><td>${fmt(r.upc||0)}</td><td>${fmt(r.pa||0)}</td><td style="font-weight:600">${fmt(r.act||0)}</td><td class="${c}" style="font-weight:700">${r.pct||0}%</td></tr>`;}).join('');
+    // Only show/calculate months that actually have Act data for this breakdown
+    // (AB+CC / AB / CC) — a month with no Act yet doesn't get its PA shown either,
+    // since AB and CC can report data on different schedules even within the same
+    // overall "latest month" window.
+    const monthIdx=Array.from({length:12},(_,i)=>i+1).filter(m=>(data[m]&&data[m].act>0));
+    const rows=monthIdx.map(m=>{const r=data[m]||{};const c=r.pct>=100?'pos':'neg';return `<tr><td>${TMA[m-1]}</td><td>${fmt(r.bkk||0)}</td><td>${fmt(r.upc||0)}</td><td>${fmt(r.pa||0)}</td><td style="font-weight:600">${fmt(r.act||0)}</td><td class="${c}" style="font-weight:700">${r.pct||0}%</td></tr>`;}).join('');
     const t={bkk:0,upc:0,pa:0,act:0};
-    for(let i=1;i<=lm;i++){const r=data[i]||{};t.bkk+=r.bkk||0;t.upc+=r.upc||0;t.pa+=r.pa||0;t.act+=r.act||0;}
+    monthIdx.forEach(m=>{const r=data[m]||{};t.bkk+=r.bkk||0;t.upc+=r.upc||0;t.pa+=r.pa||0;t.act+=r.act||0;});
     const tpct=t.pa?Math.round(t.act/t.pa*100):0;const tc=tpct>=100?'pos':'neg';
     return `<div class="tbl-scroll"><table><thead><tr><th>เดือน</th><th>กทม.</th><th>ตจว.</th><th>PA</th><th>Act</th><th>%Act</th></tr></thead><tbody>${rows}<tr class="total"><td>รวม</td><td>${fmt(t.bkk)}</td><td>${fmt(t.upc)}</td><td>${fmt(t.pa)}</td><td>${fmt(t.act)}</td><td class="${tc}">${tpct}%</td></tr></tbody></table></div>`;
   };
