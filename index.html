@@ -904,6 +904,7 @@ function buildData(month,year){
       act68:(d.act68_ab[month-1]||0)+(d.act68_cc[month-1]||0),
     })).sort((a,b)=>b.pa-a.pa),
     unmatched_actual_dp:DP_MASTER._unmatchedActualDp||[],
+    key_collisions:DP_MASTER._keyCollisions||[],
   };
 }
 
@@ -1009,6 +1010,13 @@ function shBuildMaster(paWb, actWb){
   const dcRegion = new Map();
   const unmatchedActualDp = new Map(); // key -> {dc, dp} for Actual-sheet rows that didn't
     // already exist as a PA-sheet record at match time (see actWb loop below)
+  const keyCollisions = []; // shKey() keys branches primarily by normalized DP name alone
+    // (see shKey above) so it can match PA/Act rows even when DC spelling differs between
+    // the two source files. The tradeoff: if two DIFFERENT branches under different DC
+    // happen to normalize to the same DP-name key, they silently merge into one record —
+    // whichever row is parsed second overwrites the first row's PA/Act figures instead of
+    // being kept separate. Recorded here (not auto-fixed) so real collisions can be
+    // inspected and the source sheet's branch names corrected if needed.
   function ensure(dc,dp,phak,isNew){
     const k = shKey(dc,dp);
     let o = byKey.get(k);
@@ -1019,6 +1027,8 @@ function shBuildMaster(paWb, actWb){
         act69_cc:z12(), act69_cc_bill:z12(), act69_cc_pcs:z12(),
         act68_ab:z12(), act68_cc:z12()};
       byKey.set(k,o);
+    } else if(o.dc && dc && shNormDC(o.dc)!==shNormDC(dc)){
+      keyCollisions.push({key:k, existing:{dc:o.dc,dp:o.dp}, incoming:{dc,dp}});
     }
     if(!o.dc && dc) o.dc=dc;
     if(!o.phak && phak) o.phak=phak;
@@ -1289,6 +1299,8 @@ function shBuildMaster(paWb, actWb){
     // Actual file, never matched to a PA-sheet record — these have no isNew status from
     // the source-of-truth (PA Status column) and default to "เก่า"; surfaced here so a
     // naming mismatch between the two files can be spotted instead of silently misclassifying.
+  out._keyCollisions = keyCollisions; // two different DC/DP pairs that normalized to the
+    // same branch key and got merged into one record — see note above ensure().
   return out;
 }
 
@@ -2582,7 +2594,8 @@ function excludedFromOldTable(){
   const D = App.D;
   const list = D.excluded_from_old || [];
   const unmatched = D.unmatched_actual_dp || [];
-  if(!list.length && !unmatched.length) return '';
+  const collisions = D.key_collisions || [];
+  if(!list.length && !unmatched.length && !collisions.length) return '';
   const mn = TM[App.selMonth];
   const row = d => `<tr>
     <td>${d.dc}</td><td style="text-align:left">${d.dp}</td><td>${d.phak}</td>
@@ -2592,6 +2605,10 @@ function excludedFromOldTable(){
   </tr>`;
   const unmatchedRow = u => `<tr><td>${u.dc}</td><td style="text-align:left">${u.dp}</td>
     <td colspan="4" class="muted" style="text-align:left">พบใน Actual แต่ไม่ตรงชื่อกับ PA — ถูกนับเป็น "เก่า" โดยอัตโนมัติ (ตรวจสอบชื่อสาขา)</td></tr>`;
+  const collisionRow = c => `<tr>
+    <td style="text-align:left">${c.existing.dp}</td><td>${c.existing.dc}</td>
+    <td style="text-align:left">${c.incoming.dp}</td><td>${c.incoming.dc}</td>
+  </tr>`;
   return `
   <div class="section">
     <div class="tbl-card">
@@ -2612,6 +2629,16 @@ function excludedFromOldTable(){
         <thead><tr><th>DC</th><th style="text-align:left">DP (จากไฟล์ Actual)</th><th colspan="4">หมายเหตุ</th></tr></thead>
         <tbody>${unmatched.map(unmatchedRow).join('')}</tbody>
       </table></div>`:''}
+      ${collisions.length?`
+      <div class="tbl-head" style="justify-content:space-between;margin-top:14px">
+        <h3 style="font-size:13px">⚠ ชื่อสาขาชนกัน — ข้อมูล PA/Act ของแถวหนึ่งถูกเขียนทับ</h3>
+        <span class="muted" style="font-size:12px">${collisions.length} รายการ</span>
+      </div>
+      <div class="tbl-scroll"><table>
+        <thead><tr><th style="text-align:left">DP (แถวแรก)</th><th>DC</th><th style="text-align:left">DP (แถวที่ชนทับ)</th><th>DC</th></tr></thead>
+        <tbody>${collisions.map(collisionRow).join('')}</tbody>
+      </table></div>
+      <div class="muted" style="font-size:12px;margin-top:6px">ชื่อสาขาสองแถวนี้ หลังตัด "Drop Point"/"สาขา"/วงเล็บ/เว้นวรรค ออกแล้ว กลายเป็นรหัสเดียวกัน ระบบจึงมองเป็นสาขาเดียวกันและข้อมูลแถวหลังเขียนทับแถวแรก ควรแก้ชื่อในชีตต้นทางให้ไม่ซ้ำกัน</div>`:''}
     </div>
   </div>`;
 }
