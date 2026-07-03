@@ -1160,16 +1160,22 @@ function shBuildMaster(paWb, actWb){
   }
 
   // ---- File 1 (PA KPI): master list + monthly targets ----
+  // Two header styles show up across tabs in this workbook:
+  //   - base tabs (PA AB69 / PA CC69): STATUS, DC, ภาค, DP, then numeric month headers 1..12
+  //   - patch tabs (PA AB/CC 7-12'69): STATUS, ZONE, TYPE, DC, BRANCH 69, then Thai month
+  //     abbreviations (ก.ค., ส.ค., ...) instead of numbers
+  // paCols() recognizes both so parsePA works on either without silently finding 0 columns.
   function paCols(hrow){
     const c={statusCol:-1,dcCol:-1,phakCol:-1,dpCol:-1,month:z12().map(()=>-1)};
     (hrow||[]).forEach((cell,idx)=>{
       const t=String(cell==null?'':cell).trim();
       if(/^status$/i.test(t)) c.statusCol=idx;
       else if(/^dc$/i.test(t)) c.dcCol=idx;
-      else if(t.indexOf('ภาค')>=0) c.phakCol=idx;
-      else if(/^dp$/i.test(t)) c.dpCol=idx;
+      else if(t.indexOf('ภาค')>=0 || /^zone$/i.test(t)) c.phakCol=idx;
+      else if(/^dp$/i.test(t) || /^branch(\s|$)/i.test(t)) c.dpCol=idx;
       const mn=parseInt(t,10);
       if(String(mn)===t && mn>=1 && mn<=12) c.month[mn-1]=idx;
+      else { const tmi=TM.indexOf(t); if(tmi>=1) c.month[tmi-1]=idx; } // Thai abbrev e.g. "ก.ค."
     });
     return c;
   }
