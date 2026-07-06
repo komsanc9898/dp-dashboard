@@ -1640,7 +1640,23 @@ function buildKpiWorkbook(MONTH, YEAR){
     XLSX.utils.book_append_sheet(wb, ws, 'พื้นที่');
   })();
 
-  /* ===================== Sheet 3: ภาค ===================== */
+  /* ---- shared per-DC rollup, used by both "ภาค" and "ราย DC" below so the two sheets
+     are always consistent (same numbers, just grouped differently) ---- */
+  const dcRows = (() => {
+    const out = [];
+    REGIONS.forEach(region=>{
+      const itemsAll = ALL.filter(d=>d.phak===region);
+      const dcs = [...new Set(itemsAll.map(d=>d.dc))].sort();
+      dcs.forEach(dc=>{
+        const dcAll = ALL.filter(d=>d.dc===dc), dcAct = ACTIVE.filter(d=>d.dc===dc);
+        const pa_ab=sum(dcAll,paAB), act_ab=sum(dcAct,actAB), pa_cc=sum(dcAll,paCC), act_cc=sum(dcAct,actCC);
+        out.push({dc, phak:region, pa_ab, act_ab, pa_cc, act_cc, pa_t:pa_ab+pa_cc, act_t:act_ab+act_cc});
+      });
+    });
+    return out;
+  })();
+
+  /* ===================== Sheet 3: ภาค (aggregated from dcRows) ===================== */
   (function(){
     const sh = mkSheet();
     titleRow(sh, 0, 0, 9, `ยอดขาย DP แยกภาค · ${TMF[MONTH]} ${YEAR}`, 13);
@@ -1649,9 +1665,9 @@ function buildKpiWorkbook(MONTH, YEAR){
     let r = 4;
     let totPaAb=0, totActAb=0, totPaCc=0, totActCc=0;
     REGIONS.forEach(region=>{
-      const itemsAll = ALL.filter(d=>d.phak===region), itemsAct = ACTIVE.filter(d=>d.phak===region);
-      const pa_ab = sum(itemsAll,paAB), act_ab = sum(itemsAct,actAB);
-      const pa_cc = sum(itemsAll,paCC), act_cc = sum(itemsAct,actCC);
+      const rows = dcRows.filter(x=>x.phak===region);
+      const pa_ab = sum(rows,x=>x.pa_ab), act_ab = sum(rows,x=>x.act_ab);
+      const pa_cc = sum(rows,x=>x.pa_cc), act_cc = sum(rows,x=>x.act_cc);
       const pa_t = pa_ab+pa_cc, act_t = act_ab+act_cc;
       dataRow(sh, r, [region, pa_ab, act_ab, act_ab-pa_ab, pa_cc, act_cc, act_cc-pa_cc, pa_t, act_t, act_t-pa_t], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT]);
       totPaAb+=pa_ab; totActAb+=act_ab; totPaCc+=pa_cc; totActCc+=act_cc;
@@ -1663,42 +1679,7 @@ function buildKpiWorkbook(MONTH, YEAR){
     XLSX.utils.book_append_sheet(wb, ws, 'ภาค');
   })();
 
-  /* ===================== Sheet 4: ราย DC ===================== */
-  (function(){
-    const sh = mkSheet();
-    titleRow(sh, 0, 0, 9, `ยอดขาย DP ราย DC · ${TMF[MONTH]} ${YEAR}`, 13);
-    let r = 2;
-    REGIONS.forEach(region=>{
-      const itemsAll = ALL.filter(d=>d.phak===region);
-      if(!itemsAll.length) return;
-      subtitleRow(sh, r, 0, 9, `▸  ภาค${region}`); r++;
-      sh.merges.push({s:{r,c:1},e:{r,c:3}}, {s:{r,c:4},e:{r,c:6}}, {s:{r,c:7},e:{r,c:9}});
-      setCell(sh, r, 0, 'DC', {font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
-      setCell(sh, r, 1, 'AB', {font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
-      setCell(sh, r, 4, 'CC', {font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
-      setCell(sh, r, 7, 'รวม AB+CC', {font:{name:FONT_NAME,sz:9,bold:true,color:{rgb:NAVY}}, fill:{fgColor:{rgb:LIGHTBLUE}}, alignment:{horizontal:'center'}});
-      for(const c of [2,3,5,6,8,9]) setCell(sh, r, c, '', {fill:{fgColor:{rgb:LIGHTBLUE}}});
-      r++;
-      headerRow(sh, r, [null,'PA','ACT','DIFF','PA','ACT','DIFF','PA','ACT','DIFF']); r++;
-      const dcs = [...new Set(itemsAll.map(d=>d.dc))].sort();
-      let regPaAb=0, regActAb=0, regPaCc=0, regActCc=0;
-      dcs.forEach(dc=>{
-        const dcAll = itemsAll.filter(d=>d.dc===dc), dcAct = ACTIVE.filter(d=>d.dc===dc && d.phak===region);
-        const pa_ab=sum(dcAll,paAB), act_ab=sum(dcAct,actAB), pa_cc=sum(dcAll,paCC), act_cc=sum(dcAct,actCC);
-        const pa_t=pa_ab+pa_cc, act_t=act_ab+act_cc;
-        dataRow(sh, r, [dc, pa_ab, act_ab, act_ab-pa_ab, pa_cc, act_cc, act_cc-pa_cc, pa_t, act_t, act_t-pa_t], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT], {stripe:(r%2===0)});
-        regPaAb+=pa_ab; regActAb+=act_ab; regPaCc+=pa_cc; regActCc+=act_cc;
-        r++;
-      });
-      const regPaT = regPaAb+regPaCc, regActT = regActAb+regActCc;
-      totalRow(sh, r, ['Total', regPaAb, regActAb, regActAb-regPaAb, regPaCc, regActCc, regActCc-regPaCc, regPaT, regActT, regActT-regPaT], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT]);
-      r += 2;
-    });
-    const ws = sheetToAOA(sh, [22,12,12,12,12,12,12,12,12,12]);
-    XLSX.utils.book_append_sheet(wb, ws, 'ราย DC');
-  })();
-
-  /* ===================== Sheet 4.5: 05 KPI AB+CC (flat, all-DC, matches user's template) ===================== */
+  /* ===================== Sheet 4: ราย DC (flat, all-DC, matches user's template) ===================== */
   (function(){
     const sh = mkSheet();
     // Company-wide totals row sits ABOVE the header, matching the example file's layout.
@@ -1707,22 +1688,15 @@ function buildKpiWorkbook(MONTH, YEAR){
     headerRow(sh, 1, ['DC','PA AB','ACT AB','DIFF AB','PA CC','ACT CC','DIFF CC','PA Total','ACT Total','DIFF Total']);
     let r = 2;
     // Flat list, one row per DC, no region subtotal breaks — DCs are grouped by ภาค
-    // (same REGIONS order/grouping as the "ราย DC" sheet) then sorted alphabetically
-    // within each region. This won't match the exact custom row order of the example
-    // file (that looked like a hand-maintained list), but the columns/totals match.
-    REGIONS.forEach(region=>{
-      const itemsAll = ALL.filter(d=>d.phak===region);
-      const dcs = [...new Set(itemsAll.map(d=>d.dc))].sort();
-      dcs.forEach(dc=>{
-        const dcAll = ALL.filter(d=>d.dc===dc), dcAct = ACTIVE.filter(d=>d.dc===dc);
-        const pa_ab=sum(dcAll,paAB), act_ab=sum(dcAct,actAB), pa_cc=sum(dcAll,paCC), act_cc=sum(dcAct,actCC);
-        const pa_t=pa_ab+pa_cc, act_t=act_ab+act_cc;
-        dataRow(sh, r, [dc, pa_ab, act_ab, act_ab-pa_ab, pa_cc, act_cc, act_cc-pa_cc, pa_t, act_t, act_t-pa_t], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT], {stripe:(r%2===0)});
-        r++;
-      });
+    // then sorted alphabetically within each region (see dcRows above). This won't
+    // match the exact custom row order of the example file (that looked like a
+    // hand-maintained list), but the columns/totals match.
+    dcRows.forEach(x=>{
+      dataRow(sh, r, [x.dc, x.pa_ab, x.act_ab, x.act_ab-x.pa_ab, x.pa_cc, x.act_cc, x.act_cc-x.pa_cc, x.pa_t, x.act_t, x.act_t-x.pa_t], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT], {stripe:(r%2===0)});
+      r++;
     });
     const ws = sheetToAOA(sh, [22,12,12,12,12,12,12,12,12,12]);
-    XLSX.utils.book_append_sheet(wb, ws, '05 KPI AB+CC');
+    XLSX.utils.book_append_sheet(wb, ws, 'ราย DC');
   })();
 
   /* ===================== Sheet 5: ราย Drop point ===================== */
