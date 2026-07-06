@@ -1391,7 +1391,12 @@ function buildKpiWorkbook(MONTH, YEAR){
   const idx = MONTH - 1;
   const ALL = DP_MASTER;
   const ACTIVE = ALL.filter(d => ((d.act69_ab[idx]||0)+(d.act69_cc[idx]||0)) > 0);
-  const REGIONS = (window.PFmt && window.PFmt.PHAK_ORDER) || ['กทม.','กลาง','เหนือ','อีสาน','ตะวันออก','ใต้'];
+  // 'อื่นๆ' catches any DP whose DC never got a ภาค assigned (see shBuildMaster's
+  // phak backfill) — usually because that DC name doesn't appear anywhere in the PA
+  // sheet's DC column (e.g. a DC that only has Actual-file sales, or a spelling
+  // mismatch). Without this bucket those DPs' revenue silently disappeared from every
+  // ภาค/ราย DC total below even though it's correctly counted in the company-wide total.
+  const REGIONS = [...((window.PFmt && window.PFmt.PHAK_ORDER) || ['กทม.','กลาง','เหนือ','อีสาน','ตะวันออก','ใต้']), 'อื่นๆ'];
 
   const sum = (arr, fn) => arr.reduce((s,d)=>s+fn(d), 0);
   const paAB = d => d.pa_ab[idx]||0, paCC = d => d.pa_cc[idx]||0;
@@ -1691,6 +1696,33 @@ function buildKpiWorkbook(MONTH, YEAR){
     });
     const ws = sheetToAOA(sh, [22,12,12,12,12,12,12,12,12,12]);
     XLSX.utils.book_append_sheet(wb, ws, 'ราย DC');
+  })();
+
+  /* ===================== Sheet 4.5: 05 KPI AB+CC (flat, all-DC, matches user's template) ===================== */
+  (function(){
+    const sh = mkSheet();
+    // Company-wide totals row sits ABOVE the header, matching the example file's layout.
+    const totRow = ['', PA_AB, ACT_AB, ACT_AB-PA_AB, PA_CC, ACT_CC, ACT_CC-PA_CC, PA_T, ACT_T, ACT_T-PA_T];
+    totalRow(sh, 0, totRow, [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT]);
+    headerRow(sh, 1, ['DC','PA AB','ACT AB','DIFF AB','PA CC','ACT CC','DIFF CC','PA Total','ACT Total','DIFF Total']);
+    let r = 2;
+    // Flat list, one row per DC, no region subtotal breaks — DCs are grouped by ภาค
+    // (same REGIONS order/grouping as the "ราย DC" sheet) then sorted alphabetically
+    // within each region. This won't match the exact custom row order of the example
+    // file (that looked like a hand-maintained list), but the columns/totals match.
+    REGIONS.forEach(region=>{
+      const itemsAll = ALL.filter(d=>d.phak===region);
+      const dcs = [...new Set(itemsAll.map(d=>d.dc))].sort();
+      dcs.forEach(dc=>{
+        const dcAll = ALL.filter(d=>d.dc===dc), dcAct = ACTIVE.filter(d=>d.dc===dc);
+        const pa_ab=sum(dcAll,paAB), act_ab=sum(dcAct,actAB), pa_cc=sum(dcAll,paCC), act_cc=sum(dcAct,actCC);
+        const pa_t=pa_ab+pa_cc, act_t=act_ab+act_cc;
+        dataRow(sh, r, [dc, pa_ab, act_ab, act_ab-pa_ab, pa_cc, act_cc, act_cc-pa_cc, pa_t, act_t, act_t-pa_t], [null,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT,FMT_INT], {stripe:(r%2===0)});
+        r++;
+      });
+    });
+    const ws = sheetToAOA(sh, [22,12,12,12,12,12,12,12,12,12]);
+    XLSX.utils.book_append_sheet(wb, ws, '05 KPI AB+CC');
   })();
 
   /* ===================== Sheet 5: ราย Drop point ===================== */
