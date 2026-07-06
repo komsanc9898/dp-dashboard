@@ -1206,7 +1206,7 @@ function shBuildMaster(paWb, actWb){
     });
     return c;
   }
-  function parsePA(sheetName, target){
+  function parsePA(sheetName, target, opt={}){
     const ws = paWb.Sheets[sheetName]; if(!ws) return;
     const rows = shAOA(ws);
     let hr=-1, cols=null;
@@ -1219,9 +1219,22 @@ function shBuildMaster(paWb, actWb){
       const r=rows[i]; if(!r) continue;
       const dp=String(r[cols.dpCol]==null?'':r[cols.dpCol]).trim(); if(!dp) continue;
       const dc=String(cols.dcCol>=0?(r[cols.dcCol]||''):'').trim();
-      const phak=String(cols.phakCol>=0?(r[cols.phakCol]||''):'').trim();
+      const rawPhak=String(cols.phakCol>=0?(r[cols.phakCol]||''):'').trim();
       const isNew=/ใหม่/.test(String(cols.statusCol>=0?(r[cols.statusCol]||''):''));
-      if(dc && phak) dcRegion.set(shNormDC(dc), phak);
+      // dcRegion (DC -> ภาค) is the authoritative source used for any DP found only in the
+      // Actual file (see the actWb loop below). It must come ONLY from the base PA AB69/
+      // PA CC69 tabs, which use the real Thai ภาค taxonomy (เหนือ/กลาง/...). The 7-12 patch
+      // tabs use an English "ZONE" column (BKK/North/Center/...) instead — letting those
+      // into dcRegion silently overwrote correct Thai values with English ones, which then
+      // matched no known region and made that DC's Act-only branches vanish from every
+      // ภาค/ราย DC report (see conversation: DC รังสิต and others going missing).
+      const trusted = opt.trustRegion!==false;
+      if(dc && rawPhak && trusted) dcRegion.set(shNormDC(dc), rawPhak);
+      // For untrusted (patch-tab) rows, never hand the raw English zone text to ensure()
+      // as this DP's phak — look up the trusted DC->ภาค map built from the base tabs
+      // instead (falls back to '' if that DC isn't known yet; backfilled later same as
+      // any other Act-only DP).
+      const phak = trusted ? rawPhak : (dcRegion.get(shNormDC(dc))||'');
       const o=ensure(dc,dp,phak,isNew);
       if(isNew) o.isNew=true;
       for(let m=0;m<12;m++){ const cc=cols.month[m]; if(cc>=0) o[target][m]=shNum(r[cc]); }
@@ -1234,8 +1247,8 @@ function shBuildMaster(paWb, actWb){
   // Same header layout as above, just fewer month columns — parsePA only touches the
   // month columns it actually finds in each tab, so this patches ก.ค.-ธ.ค. on top of the
   // base tabs above without disturbing ม.ค.-มิ.ย.
-  parsePA('PA AB 7-1269','pa_ab');
-  parsePA('PA CC 7-1269','pa_cc');
+  parsePA('PA AB 7-1269','pa_ab',{trustRegion:false});
+  parsePA('PA CC 7-1269','pa_cc',{trustRegion:false});
 
   // ---- File 2 (Actual): per-DP monthly revenue/bills/pieces ----
   function classifyTab(sn){
