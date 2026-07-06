@@ -1656,17 +1656,31 @@ function buildKpiWorkbook(MONTH, YEAR){
   /* ---- shared per-DC rollup, used by both "ภาค" and "ราย DC" below so the two sheets
      are always consistent (same numbers, just grouped differently) ---- */
   const dcRows = (() => {
-    const out = [];
-    REGIONS.forEach(region=>{
-      const itemsAll = ALL.filter(d=>d.phak===region);
-      const dcs = [...new Set(itemsAll.map(d=>d.dc))].sort();
-      dcs.forEach(dc=>{
-        const dcAll = ALL.filter(d=>d.dc===dc), dcAct = ACTIVE.filter(d=>d.dc===dc);
-        const pa_ab=sum(dcAll,paAB), act_ab=sum(dcAct,actAB), pa_cc=sum(dcAll,paCC), act_cc=sum(dcAct,actCC);
-        out.push({dc, phak:region, pa_ab, act_ab, pa_cc, act_cc, pa_t:pa_ab+pa_cc, act_t:act_ab+act_cc});
-      });
+    // Each DC must be assigned to exactly ONE region. Looping REGIONS first and pulling
+    // whichever DCs show up under each (the previous approach) double-counted any DC
+    // whose individual branches carry inconsistent ภาค values in the source PA sheet
+    // (real data-entry issue found in DC ราชบุรี/หาดใหญ่/กระบี่/ปราจีนบุรี/ระยอง — some of
+    // their branches are tagged with a different ภาค than the rest) — such a DC would
+    // appear in more than one region's DC list, and its FULL total (computed by dc name
+    // alone) got added in for each region it appeared under.
+    // Fix: compute one canonical ภาค per DC first (majority vote across its own DPs),
+    // then group DCs into regions using that single value.
+    const dcNames = [...new Set(ALL.map(d=>d.dc))].filter(Boolean);
+    const canonicalPhak = dc => {
+      const counts = {};
+      ALL.filter(d=>d.dc===dc).forEach(d=>{ const p=d.phak||'อื่นๆ'; counts[p]=(counts[p]||0)+1; });
+      let best=null, bestN=-1;
+      for(const p in counts){ if(counts[p]>bestN){ best=p; bestN=counts[p]; } }
+      return best || 'อื่นๆ';
+    };
+    const rows = dcNames.map(dc=>{
+      const dcAll = ALL.filter(d=>d.dc===dc), dcAct = ACTIVE.filter(d=>d.dc===dc);
+      const pa_ab=sum(dcAll,paAB), act_ab=sum(dcAct,actAB), pa_cc=sum(dcAll,paCC), act_cc=sum(dcAct,actCC);
+      return {dc, phak:canonicalPhak(dc), pa_ab, act_ab, pa_cc, act_cc, pa_t:pa_ab+pa_cc, act_t:act_ab+act_cc};
     });
-    return out;
+    const regionRank = p => { const i=REGIONS.indexOf(p); return i<0 ? REGIONS.length : i; };
+    rows.sort((a,b)=> regionRank(a.phak)-regionRank(b.phak) || a.dc.localeCompare(b.dc,'th'));
+    return rows;
   })();
 
   /* ===================== Sheet 3: ภาค (aggregated from dcRows) ===================== */
