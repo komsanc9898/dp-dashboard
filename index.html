@@ -1653,6 +1653,20 @@ function buildKpiWorkbook(MONTH, YEAR){
     XLSX.utils.book_append_sheet(wb, ws, 'พื้นที่');
   })();
 
+  // Exact DC row order from the user's reference file ("05 KPI AB+CC" template) — any DC
+  // not in this list (new DC added later, or spelled differently) sorts after it, grouped
+  // by ภาค then alphabetically so nothing silently disappears from the sheet.
+  const DC_ORDER = ['DC เชียงใหม่','DC ลำพูน','DC ลำปาง','DC แพร่','DC น่าน','DC พะเยา','DC เชียงราย',
+    'DC แม่สาย','DC นครสวรรค์','DC กำแพงเพชร','DC ตาก','DC อุตรดิตถ์','DC พิษณุโลก','DC เพชรบูรณ์',
+    'DC พิจิตร','DC สุโขทัย','DC วิเชียรบุรี','DC ขอนแก่น','DC เลย','DC ชัยภูมิ','DC อุดรธานี','DC โคราช',
+    'DC บุรีรัมย์','DC สุรินทร์','DC ศรีสะเกษ','DC อุบลราชธานี','DC หนองคาย','DC ยโสธร','DC สกลนคร',
+    'DC ร้อยเอ็ด','DC กาฬสินธุ์','DC นครพนม','DC พล','DC อรัญประเทศ','DC อำนาจเจริญ','DC มุกดาหาร',
+    'DC ปากช่อง','DC กันทรลักษ์','DC ชลบุรี','DC พัทยา','DC ระยอง','DC จันทบุรี','DC ปราจีนบุรี',
+    'DC ทุ่งสง','DC นครศรีธรรมราช','DC พังงา','DC กระบี่','DC ภูเก็ต','DC สุราษฎร์','DC ชุมพร',
+    'DC หาดใหญ่','DC พัทลุง','DC ประจวบคีรีขันธ์','DC ชะอำ','DC ลพบุรี','DC สระบุรี','DC อยุธยา',
+    'DC ราชบุรี','DC กาญจนบุรี','DC สุพรรณบุรี','DC ฉะเชิงเทรา','DC ชัยนาท','DC นครปฐม','DC สมุทรสาคร',
+    'DC รังสิต','DC สุวรรณภูมิ','DC พุทธมณฑลสาย 3','CDC บางนา'];
+
   /* ---- shared per-DC rollup, used by both "ภาค" and "ราย DC" below so the two sheets
      are always consistent (same numbers, just grouped differently) ---- */
   const dcRows = (() => {
@@ -1679,7 +1693,13 @@ function buildKpiWorkbook(MONTH, YEAR){
       return {dc, phak:canonicalPhak(dc), pa_ab, act_ab, pa_cc, act_cc, pa_t:pa_ab+pa_cc, act_t:act_ab+act_cc};
     });
     const regionRank = p => { const i=REGIONS.indexOf(p); return i<0 ? REGIONS.length : i; };
-    rows.sort((a,b)=> regionRank(a.phak)-regionRank(b.phak) || a.dc.localeCompare(b.dc,'th'));
+    rows.sort((a,b)=>{
+      const ia=DC_ORDER.indexOf(a.dc), ib=DC_ORDER.indexOf(b.dc);
+      if(ia>=0 && ib>=0) return ia-ib;           // both known — exact template order
+      if(ia>=0) return -1;                        // known DCs sort before unknown ones
+      if(ib>=0) return 1;
+      return regionRank(a.phak)-regionRank(b.phak) || a.dc.localeCompare(b.dc,'th'); // unknown DCs: group by ภาค, then A-Z
+    });
     return rows;
   })();
 
