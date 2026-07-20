@@ -2018,36 +2018,53 @@ async function buildKpiPptx(MONTH, YEAR){
   pptx.defineLayout({name:'NIM', width:13.333, height:7.5});
   pptx.layout = 'NIM';
 
-  const NAVY='002060', BLUE='0070C0', TXTBLUE='006BB6', RED='FF0000', GOLD='FFDC38', WHITE='FFFFFF', LIGHTBAND='EAF2FB';
-  const FONT='Calibri';
+  // Palette + typography lifted directly from the user's template deck (06-June_69):
+  //   header cells 006BB6 blue / white text · group-header band 729FCF · data cells
+  //   white (noFill) with thin 006BB6 borders · black data text · DIFF colored red when
+  //   negative, 0070C0 when positive · font "Prompt" (Thai). Total rows get a light band.
+  const HDR='006BB6', BAND='729FCF', BLUE='0070C0', BLACK='000000', RED='FF0000', GOLD='FFDC38', WHITE='FFFFFF', TOTALFILL='DCE6F1', NAVY='002060';
+  const LIGHTBAND = TOTALFILL; // alias: total/summary rows use the light band fill
+  const FONT='Prompt';
+  const BORDER = {type:'solid', color:HDR, pt:0.75};
   const fmt = n => Math.round(n||0).toLocaleString('en-US');
   const fmtSigned = n => { const v=Math.round(n||0); return (v>=0?'':'-')+Math.abs(v).toLocaleString('en-US'); };
   const pct1 = n => (isFinite(n)?(n*100).toFixed(1):'0.0')+'%';
   const pct0 = n => (isFinite(n)?Math.round(n*100):0)+'%';
-  const diffColor = n => n<0 ? RED : NAVY;
+  const diffColor = n => n<0 ? RED : BLUE;
 
   function chrome(slide, title, subtitle){
     slide.background = {color:WHITE};
-    slide.addImage({data:NIM_LOGO1_B64, x:0.13, y:0.14, w:1.0, h:0.247});
-    slide.addImage({data:NIM_LOGO2_B64, x:11.70, y:0.14, w:1.5, h:0.247});
-    slide.addText(title, {x:0.35, y:0.45, w:10.5, h:0.42, fontFace:FONT, fontSize:17, bold:true, color:NAVY, align:'left'});
-    if(subtitle) slide.addText(subtitle, {x:0.35, y:0.87, w:10.5, h:0.32, fontFace:FONT, fontSize:12, bold:true, color:RED, align:'left'});
-    slide.addShape('rect', {x:0, y:7.36, w:10.4, h:0.14, fill:{color:RED}, line:{type:'none'}});
-    slide.addShape('rect', {x:10.4, y:7.36, w:2.93, h:0.14, fill:{color:GOLD}, line:{type:'none'}});
+    slide.addImage({data:NIM_LOGO1_B64, x:0.16, y:0.16, w:1.0, h:0.247});
+    slide.addImage({data:NIM_LOGO2_B64, x:11.55, y:0.16, w:1.6, h:0.247});
+    slide.addText(title, {x:0.4, y:0.5, w:11.0, h:0.42, fontFace:FONT, fontSize:16, bold:true, color:NAVY, align:'left'});
+    if(subtitle) slide.addText(subtitle, {x:0.4, y:0.9, w:11.0, h:0.3, fontFace:FONT, fontSize:11, bold:true, color:RED, align:'left'});
+    slide.addShape('rect', {x:0, y:7.36, w:9.33, h:0.14, fill:{color:RED}, line:{type:'none'}});
+    slide.addShape('rect', {x:9.33, y:7.36, w:4.0, h:0.14, fill:{color:GOLD}, line:{type:'none'}});
   }
   function newSlide(title, subtitle){
     const s = pptx.addSlide();
     chrome(s, title, subtitle);
     return s;
   }
-  const HCELL = txt => ({text:txt, options:{fill:{color:BLUE}, color:WHITE, bold:true, align:'center', fontFace:FONT, fontSize:10}});
-  const CELL = (txt, opt={}) => ({text:String(txt), options:Object.assign({fontFace:FONT, fontSize:10, color:TXTBLUE, align:'right'}, opt)});
+  // Header cell: blue fill, white bold, centered
+  const HCELL = (txt, opt={}) => ({text:String(txt), options:Object.assign({fill:{color:HDR}, color:WHITE, bold:true, align:'center', valign:'middle', fontFace:FONT, fontSize:11, border:BORDER}, opt)});
+  // Data cell: white bg, black text, centered by default (template centers numbers)
+  const CELL = (txt, opt={}) => {
+    const o = Object.assign({fontFace:FONT, fontSize:11, color:BLACK, align:'center', valign:'middle', border:BORDER}, opt);
+    if(o.fill===undefined) o.fill = {color:WHITE};
+    return {text:String(txt), options:o};
+  };
+  // Total-row cell helper (light band + bold)
+  const TCELL = (txt, opt={}) => CELL(txt, Object.assign({bold:true, fill:{color:TOTALFILL}}, opt));
+
+  // Group-header cell (AB / CC / Total spanning band) — template uses 729FCF
+  const GCELL = (txt, span) => ({text:String(txt), options:{fill:{color:BAND}, color:WHITE, bold:true, align:'center', valign:'middle', fontFace:FONT, fontSize:11, colspan:span, border:BORDER}});
 
   function table(slide, rows, colW, y, opt={}){
+    const totalW = colW.reduce((a,b)=>a+b,0);
     slide.addTable(rows, Object.assign({
-      x:(13.333-colW.reduce((a,b)=>a+b,0))/2, y, w:colW.reduce((a,b)=>a+b,0), colW,
-      border:{type:'solid', color:'D9E2EC', pt:0.5},
-      autoPage:false, valign:'middle', margin:1,
+      x:(13.333-totalW)/2, y, w:totalW, colW,
+      autoPage:false, valign:'middle', margin:2, rowH:0.3,
     }, opt));
   }
 
@@ -2236,7 +2253,7 @@ async function buildKpiPptx(MONTH, YEAR){
 
   /* =============== Slide 15: สรุปยอดขาย DP แยก AB+CC แยกภาคเทียบ PA =============== */
   {
-    const head1 = [HCELL('ภาค'), {text:'AB',options:{fill:{color:BLUE},color:WHITE,bold:true,align:'center',fontFace:FONT,fontSize:10,colspan:3}}, {text:'CC',options:{fill:{color:BLUE},color:WHITE,bold:true,align:'center',fontFace:FONT,fontSize:10,colspan:3}}, {text:'Total',options:{fill:{color:BLUE},color:WHITE,bold:true,align:'center',fontFace:FONT,fontSize:10,colspan:3}}];
+    const head1 = [HCELL('ภาค'), GCELL('AB',3), GCELL('CC',3), GCELL('Total',3)];
     const head2 = [HCELL(''), HCELL('PA'),HCELL('ACT'),HCELL('DIFF'), HCELL('PA'),HCELL('ACT'),HCELL('DIFF'), HCELL('PA'),HCELL('ACT'),HCELL('DIFF')];
     const rows = [head1, head2];
     const mainRegions = REGIONS.filter(r=>r!=='อื่นๆ' || dcRows.some(x=>x.phak==='อื่นๆ'));
@@ -2265,7 +2282,7 @@ async function buildKpiPptx(MONTH, YEAR){
     const CHUNK = 10;
     for(let i=0;i<rs.length;i+=CHUNK){
       const chunk = rs.slice(i, i+CHUNK);
-      const head1 = [HCELL('Area'), {text:'AB',options:{fill:{color:BLUE},color:WHITE,bold:true,align:'center',fontFace:FONT,fontSize:10,colspan:3}}, {text:'CC',options:{fill:{color:BLUE},color:WHITE,bold:true,align:'center',fontFace:FONT,fontSize:10,colspan:3}}, {text:'Total',options:{fill:{color:BLUE},color:WHITE,bold:true,align:'center',fontFace:FONT,fontSize:10,colspan:3}}];
+      const head1 = [HCELL('Area'), GCELL('AB',3), GCELL('CC',3), GCELL('Total',3)];
       const head2 = [HCELL(''), HCELL('PA'),HCELL('ACT'),HCELL('DIFF'), HCELL('PA'),HCELL('ACT'),HCELL('DIFF'), HCELL('PA'),HCELL('ACT'),HCELL('DIFF')];
       const rows = [head1, head2];
       chunk.forEach(x=>{
@@ -2273,7 +2290,7 @@ async function buildKpiPptx(MONTH, YEAR){
           CELL(fmt(x.pa_cc)),CELL(fmt(x.act_cc)),CELL(fmtSigned(x.act_cc-x.pa_cc),{color:diffColor(x.act_cc-x.pa_cc)}),
           CELL(fmt(x.pa_t)),CELL(fmt(x.act_t)),CELL(fmtSigned(x.act_t-x.pa_t),{color:diffColor(x.act_t-x.pa_t)})]);
       });
-      const s = newSlide(`ยอดขาย DP แยก AB และ CC ภาค${region==='กทม.'?'':''}${region} เดือน ${TM[MONTH]} ${YEAR}`, '');
+      const s = newSlide(`ยอดขาย DP แยก AB และ CC ภาค${region} เดือน ${TM[MONTH]} ${YEAR}`, '');
       table(s, rows, [1.5,1.15,1.15,1.15,1.15,1.15,1.15,1.15,1.15,1.15], 1.3);
     }
   }
