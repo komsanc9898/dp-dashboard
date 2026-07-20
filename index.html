@@ -2109,12 +2109,56 @@ async function buildKpiPptx(MONTH, YEAR){
     table(s1, rows, [1.1,1.0,1.35,1.0,1.0,1.0,1.1,1.1,1.0], 1.4);
 
     const s2 = newSlide('อัตราการเปิด Drop Point ใหม่ เทียบ PA', `ม.ค. – ${TMF[MONTH]} ${YEAR}`);
-    const catMonths = []; const paSeries=[]; const actSeries=[];
-    for(let m=0;m<MONTH;m++){ catMonths.push(TM[m+1]); paSeries.push(R.pa[m]||0); actSeries.push((R.act_ab[m]||0)+(R.act_cc[m]||0)); }
-    s2.addChart(pptx.ChartType.line, [
-      {name:'PA', labels:catMonths, values:paSeries},
-      {name:'Act', labels:catMonths, values:actSeries},
-    ], {x:1.5, y:1.5, w:10.3, h:5.4, showLegend:true, legendPos:'t', chartColors:[RED,BLUE], lineDataSymbol:'circle', lineDataSymbolSize:8, showValue:true, dataLabelColor:NAVY, catAxisLabelColor:NAVY, valAxisLabelColor:NAVY});
+    // Lollipop chart drawn as native shapes to match the dashboard exactly: a vertical
+    // stem from the axis up to a filled circle with the value inside (PA red, Act blue).
+    (function(){
+      const cats=[], paS=[], actS=[];
+      for(let m=0;m<MONTH;m++){ cats.push(TM[m+1]); paS.push(R.pa[m]||0); actS.push((R.act_ab[m]||0)+(R.act_cc[m]||0)); }
+      const LRED='E34948', LBLUE='2A78D6';
+      // plot area
+      const plotX=1.4, plotY=2.0, plotW=10.5, plotH=4.4;
+      const yMax=15, yStep=5;                 // matches dashboard's 0..15 scale
+      const yTop=plotY, yBot=plotY+plotH;
+      const yPix=v=> yBot-(v/yMax)*(plotH);
+      const n=cats.length;
+      const colW=plotW/n;
+      const xCenter=i=> plotX + colW*(i+0.5);
+      // chart title
+      s2.addText('อัตราการเปิด Drop Point ใหม่', {x:0, y:1.35, w:13.333, h:0.35, align:'center', fontFace:FONT, fontSize:15, bold:true, color:BLACK});
+      // legend (PA red / Act blue dots)
+      s2.addShape('ellipse', {x:5.55, y:1.78, w:0.16, h:0.16, fill:{color:LRED}, line:{type:'none'}});
+      s2.addText('PA', {x:5.75, y:1.7, w:0.7, h:0.3, fontFace:FONT, fontSize:12, bold:true, color:LRED, align:'left', valign:'middle'});
+      s2.addShape('ellipse', {x:6.5, y:1.78, w:0.16, h:0.16, fill:{color:LBLUE}, line:{type:'none'}});
+      s2.addText('Act', {x:6.7, y:1.7, w:0.7, h:0.3, fontFace:FONT, fontSize:12, bold:true, color:LBLUE, align:'left', valign:'middle'});
+      // y grid lines + labels
+      for(let v=0; v<=yMax; v+=yStep){
+        const y=yPix(v);
+        s2.addShape('line', {x:plotX, y, w:plotW, h:0, line:{color:'E8E8E8', width:1}});
+        s2.addText(String(v), {x:plotX-0.55, y:y-0.15, w:0.45, h:0.3, align:'right', valign:'middle', fontFace:FONT, fontSize:12, color:'444444'});
+      }
+      // x baseline
+      s2.addShape('line', {x:plotX, y:yBot, w:plotW, h:0, line:{color:'000000', width:1.5}});
+      const DOT=0.42; // circle diameter (inches)
+      function lolli(i, val, color, stemW){
+        if(val==null) return;
+        const cx=xCenter(i), cyTop=yPix(val);
+        // stem
+        s2.addShape('line', {x:cx, y:cyTop, w:0, h:yBot-cyTop, line:{color, width:stemW}});
+        // circle
+        s2.addShape('ellipse', {x:cx-DOT/2, y:cyTop-DOT/2, w:DOT, h:DOT, fill:{color}, line:{type:'none'}});
+        // value inside
+        s2.addText(String(val), {x:cx-DOT/2, y:cyTop-DOT/2, w:DOT, h:DOT, align:'center', valign:'middle', fontFace:FONT, fontSize:12, bold:true, color:WHITE});
+      }
+      // draw Act first (thicker stem, behind), then PA, matching dashboard layering
+      for(let i=0;i<n;i++) lolli(i, actS[i], LBLUE, 4);
+      for(let i=0;i<n;i++) lolli(i, paS[i], LRED, 2.5);
+      // month labels + ticks
+      for(let i=0;i<n;i++){
+        const cx=xCenter(i);
+        s2.addShape('line', {x:cx, y:yBot, w:0, h:0.08, line:{color:'000000', width:1.5}});
+        s2.addText(cats[i], {x:cx-colW/2, y:yBot+0.12, w:colW, h:0.3, align:'center', fontFace:FONT, fontSize:12, bold:true, color:BLACK});
+      }
+    })();
   }
 
   /* =============== Slide 3-4: จำนวน Drop Point ปัจจุบัน =============== */
