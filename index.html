@@ -2036,25 +2036,43 @@ async function buildKpiPptx(MONTH, YEAR){
   const pct0 = n => (isFinite(n)?Math.round(n*100):0)+'%';
   const diffColor = n => n<0 ? RED : BLUE;
 
-  function chrome(slide, title, subtitle){
+  function chrome(slide, titleParts){
+    // titleParts: array of {text, red?} runs — matches the template's title style where
+    // the label is black and the เดือน/ปี portion is red, all at 24pt bold Prompt.
     slide.background = {color:WHITE};
-    slide.addImage({data:NIM_LOGO1_B64, x:0.16, y:0.16, w:1.0, h:0.247});
-    slide.addImage({data:NIM_LOGO2_B64, x:11.55, y:0.16, w:1.6, h:0.247});
-    slide.addText(title, {x:0.4, y:0.5, w:11.0, h:0.42, fontFace:FONT, fontSize:16, bold:true, color:NAVY, align:'left'});
-    if(subtitle) slide.addText(subtitle, {x:0.4, y:0.9, w:11.0, h:0.3, fontFace:FONT, fontSize:11, bold:true, color:RED, align:'left'});
-    slide.addShape('rect', {x:0, y:7.36, w:9.33, h:0.14, fill:{color:RED}, line:{type:'none'}});
-    slide.addShape('rect', {x:9.33, y:7.36, w:4.0, h:0.14, fill:{color:GOLD}, line:{type:'none'}});
+    slide.addImage({data:NIM_LOGO1_B64, x:0.28, y:0.2, w:1.15, h:0.284});
+    slide.addImage({data:NIM_LOGO2_B64, x:11.2, y:0.2, w:1.85, h:0.285});
+    const runs = (Array.isArray(titleParts)?titleParts:[{text:titleParts}]).map(p=>({
+      text:p.text, options:{color:p.red?RED:BLACK, bold:true, fontFace:FONT, fontSize:24}
+    }));
+    slide.addText(runs, {x:0.7, y:0.72, w:11.9, h:0.7, align:'left', valign:'middle'});
+    // Bottom banner: gold full-width base, red band, blue band on top — from the left the
+    // eye reads blue → red → gold, exactly as the template layers them.
+    slide.addShape('rect', {x:0, y:7.36, w:13.333, h:0.14, fill:{color:GOLD}, line:{type:'none'}});
+    slide.addShape('rect', {x:0, y:7.36, w:10.47, h:0.14, fill:{color:RED}, line:{type:'none'}});
+    slide.addShape('rect', {x:0, y:7.36, w:5.0, h:0.14, fill:{color:BLUE}, line:{type:'none'}});
   }
-  function newSlide(title, subtitle){
+  // Build a title-parts array: black label + red " เดือน <month> <year>" style tail.
+  const titleMY = (label, tail) => {
+    const parts = [{text:label+' '}];
+    if(tail){ parts.push({text:tail, red:true}); }
+    return parts;
+  };
+  function newSlide(titleParts, redTail){
     const s = pptx.addSlide();
-    chrome(s, title, subtitle);
+    // Two-arg form: (blackLabel, redDateTail) → template-style title.
+    let parts;
+    if(Array.isArray(titleParts)) parts = titleParts;
+    else if(redTail) parts = [{text:titleParts+'  '}, {text:redTail, red:true}];
+    else parts = [{text:titleParts}];
+    chrome(s, parts);
     return s;
   }
   // Header cell: blue fill, white bold, centered
-  const HCELL = (txt, opt={}) => ({text:String(txt), options:Object.assign({fill:{color:HDR}, color:WHITE, bold:true, align:'center', valign:'middle', fontFace:FONT, fontSize:11, border:BORDER}, opt)});
+  const HCELL = (txt, opt={}) => ({text:String(txt), options:Object.assign({fill:{color:HDR}, color:WHITE, bold:true, align:'center', valign:'middle', fontFace:FONT, fontSize:13, border:BORDER}, opt)});
   // Data cell: white bg, black text, centered by default (template centers numbers)
   const CELL = (txt, opt={}) => {
-    const o = Object.assign({fontFace:FONT, fontSize:11, color:BLACK, align:'center', valign:'middle', border:BORDER}, opt);
+    const o = Object.assign({fontFace:FONT, fontSize:13, color:BLACK, align:'center', valign:'middle', border:BORDER}, opt);
     if(o.fill===undefined) o.fill = {color:WHITE};
     return {text:String(txt), options:o};
   };
@@ -2062,13 +2080,13 @@ async function buildKpiPptx(MONTH, YEAR){
   const TCELL = (txt, opt={}) => CELL(txt, Object.assign({bold:true, fill:{color:TOTALFILL}}, opt));
 
   // Group-header cell (AB / CC / Total spanning band) — template uses 729FCF
-  const GCELL = (txt, span) => ({text:String(txt), options:{fill:{color:BAND}, color:WHITE, bold:true, align:'center', valign:'middle', fontFace:FONT, fontSize:11, colspan:span, border:BORDER}});
+  const GCELL = (txt, span) => ({text:String(txt), options:{fill:{color:BAND}, color:WHITE, bold:true, align:'center', valign:'middle', fontFace:FONT, fontSize:13, colspan:span, border:BORDER}});
 
   function table(slide, rows, colW, y, opt={}){
     const totalW = colW.reduce((a,b)=>a+b,0);
     slide.addTable(rows, Object.assign({
       x:(13.333-totalW)/2, y, w:totalW, colW,
-      autoPage:false, valign:'middle', margin:2, rowH:0.3,
+      autoPage:false, valign:'middle', margin:3, rowH:0.42,
     }, opt));
   }
 
@@ -2087,10 +2105,10 @@ async function buildKpiPptx(MONTH, YEAR){
     const totTot=totAb+totCc, totDiff=totTot-totPa, totP=totPa?totTot/totPa:0;
     rows.push([CELL('รวม',{align:'center',bold:true,fill:{color:LIGHTBAND}}), CELL(fmt(totPa),{bold:true,fill:{color:LIGHTBAND}}), CELL(totTd||'-',{align:'center',bold:true,fill:{color:LIGHTBAND}}), CELL(totUp||'-',{align:'center',bold:true,fill:{color:LIGHTBAND}}), CELL(fmt(totAb),{bold:true,fill:{color:LIGHTBAND}}), CELL(fmt(totCc),{bold:true,fill:{color:LIGHTBAND}}), CELL(fmt(totTot),{bold:true,fill:{color:LIGHTBAND}}), CELL(fmtSigned(totDiff),{color:diffColor(totDiff),bold:true,fill:{color:LIGHTBAND}}), CELL(pct1(totP),{bold:true,fill:{color:LIGHTBAND}})]);
 
-    const s1 = newSlide('อัตราการเปิด Drop Point ใหม่ เทียบ PA', `ม.ค. – ${TM[MONTH]} ${YEAR}`);
+    const s1 = newSlide('อัตราการเปิด Drop Point ใหม่ เทียบ PA', `ม.ค. – ${TMF[MONTH]} ${YEAR}`);
     table(s1, rows, [1.1,1.0,1.35,1.0,1.0,1.0,1.1,1.1,1.0], 1.4);
 
-    const s2 = newSlide('อัตราการเปิด Drop Point ใหม่ เทียบ PA', `ม.ค. – ${TM[MONTH]} ${YEAR}`);
+    const s2 = newSlide('อัตราการเปิด Drop Point ใหม่ เทียบ PA', `ม.ค. – ${TMF[MONTH]} ${YEAR}`);
     const catMonths = []; const paSeries=[]; const actSeries=[];
     for(let m=0;m<MONTH;m++){ catMonths.push(TM[m+1]); paSeries.push(R.pa[m]||0); actSeries.push((R.act_ab[m]||0)+(R.act_cc[m]||0)); }
     s2.addChart(pptx.ChartType.line, [
@@ -2124,10 +2142,10 @@ async function buildKpiPptx(MONTH, YEAR){
       closeRow.map((v,i)=> i===0?CELL(v,{align:'left',bold:true}):CELL(v,{align:'center',color:RED})),
       curRow.map((v,i)=> i===0?CELL(v,{align:'left',bold:true,fill:{color:LIGHTBAND}}):CELL(v,{align:'center',bold:true,fill:{color:LIGHTBAND}})),
     ];
-    const s3 = newSlide('จำนวน Drop Point ปัจจุบัน', `ม.ค. – ${TM[MONTH]} ${YEAR}`);
+    const s3 = newSlide('จำนวน Drop Point ปัจจุบัน', `ม.ค. – ${TMF[MONTH]} ${YEAR}`);
     table(s3, rows, [1.6, ...Array.from({length:MONTH},()=>1.4)], 1.6);
 
-    const s4 = newSlide('จำนวน DP เปิด – ปิด เทียบ PA', `ม.ค. – ${TM[MONTH]} ${YEAR}`);
+    const s4 = newSlide('จำนวน DP เปิด – ปิด เทียบ PA', `ม.ค. – ${TMF[MONTH]} ${YEAR}`);
     const cats=[]; const curSeries=[]; const paSeries=[];
     let carry2 = running - net;
     for(let m=0;m<MONTH;m++){ const opened=C.act[m]||0, closed=C.close[m]||0; const cur=carry2+opened-closed; cats.push(TM[m+1]); curSeries.push(cur); paSeries.push(C.pa[m]||0); carry2=cur; }
@@ -2155,7 +2173,7 @@ async function buildKpiPptx(MONTH, YEAR){
       row('Drop Point เก่า', pa_o, act_o, a68_o, false),
       row('Drop Point ใหม่', pa_n, act_n, a68_n, false),
     ];
-    const s = newSlide(`สรุปยอดขาย Drop Point ${label}`, `${TM[MONTH]} ${YEAR} เทียบ PA`);
+    const s = newSlide(`สรุปยอดขาย Drop Point ${label}`, `${TMF[MONTH]} ${YEAR} เทียบ PA`);
     table(s, rows, [2.4,1.9,1.9,1.5,1.9,1.5], 2.2);
   }
   summarySlide('AB + CC', PA_T, ACT_T, ACT68_T, 't');
@@ -2173,7 +2191,7 @@ async function buildKpiPptx(MONTH, YEAR){
       return [CELL(label,Object.assign({align:'left'},o)), CELL(fmt(n),o), CELL(fmt(pa_v),o), CELL(fmt(act_v),o), CELL(pct0(pct),o), CELL(fmt(avg),o)];
     };
     const rows = [head, mkRow('กทม.',bkkAll,bkkAct,false), mkRow('ตจว.',upcAll,upcAct,false), mkRow('รวม',ALL,ACTIVE,true)];
-    const s = newSlide('สรุปยอดขาย DP AB + CC แยกพื้นที่ กทม. และ ตจว.', `${TM[MONTH]} ${YEAR}`);
+    const s = newSlide('สรุปยอดขาย DP AB + CC แยกพื้นที่ กทม. และ ตจว.', `${TMF[MONTH]} ${YEAR}`);
     table(s, rows, [1.8,1.8,1.9,1.9,1.3,1.6], 1.5);
     const paBkk=sum(bkkAll,paT), actBkk=sum(bkkAct,actT), actUpc=sum(upcAct,actT);
     s.addChart(pptx.ChartType.doughnut, [{name:'สัดส่วน', labels:['กทม.','ตจว.'], values:[actBkk, actUpc]}],
@@ -2231,7 +2249,7 @@ async function buildKpiPptx(MONTH, YEAR){
       chartLabels.push(label); chartVals.push(rev);
     });
     rows.push([CELL('รวม',{align:'left',bold:true,fill:{color:LIGHTBAND}}), CELL('100%',{align:'center',bold:true,fill:{color:LIGHTBAND}}), CELL('100.0%',{bold:true,fill:{color:LIGHTBAND}}), CELL(fmt(ACTIVE.length),{align:'center',bold:true,fill:{color:LIGHTBAND}}), CELL(fmt(totalAct),{bold:true,fill:{color:LIGHTBAND}})]);
-    const s = newSlide('อัตราการทำงาน DP คุณภาพ', `${TM[MONTH]} ${YEAR}`);
+    const s = newSlide('อัตราการทำงาน DP คุณภาพ', `${TMF[MONTH]} ${YEAR}`);
     table(s, rows, [1.8,1.4,1.3,1.6,1.9], 1.5);
     s.addChart(pptx.ChartType.doughnut, [{name:'สัดส่วน', labels:chartLabels, values:chartVals}],
       {x:9.0, y:3.5, w:3.8, h:3.4, chartColors:[BLUE,GOLD,'8FAADC'], showLegend:true, legendPos:'b', showValue:true, dataLabelColor:NAVY, title:'สัดส่วน Drop Point แยกตามยอดขาย', showTitle:true, titleColor:NAVY, titleFontSize:11});
@@ -2242,7 +2260,7 @@ async function buildKpiPptx(MONTH, YEAR){
     const pool = [...ACTIVE].sort((a,b)=> actT(b)-actT(a)).slice(0,10);
     const head = [HCELL('ลำดับ'), HCELL('DC'), HCELL('DP สาขา'), HCELL('บิล'), HCELL('ชิ้น'), HCELL('บาท')];
     const rows = [head, ...pool.map((d,i)=>[CELL(i+1,{align:'center'}), CELL(d.dc.replace(/^DC\s*/,''),{align:'left'}), CELL(d.dp.replace(/^Drop\s*[Pp]oint\s*(สาขา)?\s*/,''),{align:'left'}), CELL(fmt(billT(d))), CELL(fmt(pcsT(d))), CELL(fmt(actT(d)))])];
-    const s = newSlide('ยอดขาย DP สูงสุด 10 อันดับ', `ประจำเดือน ${TM[MONTH]} ${YEAR}`);
+    const s = newSlide('ยอดขาย DP สูงสุด 10 อันดับ', `ประจำเดือน ${TMF[MONTH]} ${YEAR}`);
     table(s, rows, [1.0,2.2,3.8,1.5,1.5,2.0], 1.6);
   }
 
@@ -2251,7 +2269,7 @@ async function buildKpiPptx(MONTH, YEAR){
     const pool = ACTIVE.filter(d=>actT(d)>0 && actT(d)<1500).sort((a,b)=>actT(a)-actT(b)).slice(0,15);
     const head = [HCELL('ลำดับ'), HCELL('DC'), HCELL('DP สาขา'), HCELL('บิล'), HCELL('ชิ้น'), HCELL('บาท')];
     const rows = [head, ...pool.map((d,i)=>[CELL(i+1,{align:'center'}), CELL(d.dc.replace(/^DC\s*/,''),{align:'left'}), CELL(d.dp.replace(/^Drop\s*[Pp]oint\s*(สาขา)?\s*/,''),{align:'left'}), CELL(fmt(billT(d))), CELL(fmt(pcsT(d))), CELL(fmt(actT(d)))])];
-    const s = newSlide('ยอดขาย DP ต่ำกว่า 1,500 บาท', `ประจำเดือน ${TM[MONTH]} ${YEAR}`);
+    const s = newSlide('ยอดขาย DP ต่ำกว่า 1,500 บาท', `ประจำเดือน ${TMF[MONTH]} ${YEAR}`);
     table(s, rows, [1.0,2.2,3.8,1.5,1.5,2.0], 1.6);
   }
 
@@ -2275,7 +2293,7 @@ async function buildKpiPptx(MONTH, YEAR){
     rows.push([CELL('Total',{align:'left',bold:true,fill:{color:LIGHTBAND}}), CELL(fmt(totPaAb),{bold:true,fill:{color:LIGHTBAND}}),CELL(fmt(totActAb),{bold:true,fill:{color:LIGHTBAND}}),CELL(fmtSigned(totActAb-totPaAb),{color:diffColor(totActAb-totPaAb),bold:true,fill:{color:LIGHTBAND}}),
       CELL(fmt(totPaCc),{bold:true,fill:{color:LIGHTBAND}}),CELL(fmt(totActCc),{bold:true,fill:{color:LIGHTBAND}}),CELL(fmtSigned(totActCc-totPaCc),{color:diffColor(totActCc-totPaCc),bold:true,fill:{color:LIGHTBAND}}),
       CELL(fmt(totPaT),{bold:true,fill:{color:LIGHTBAND}}),CELL(fmt(totActT),{bold:true,fill:{color:LIGHTBAND}}),CELL(fmtSigned(totActT-totPaT),{color:diffColor(totActT-totPaT),bold:true,fill:{color:LIGHTBAND}})]);
-    const s = newSlide('สรุปยอดขาย DP แยก AB + CC แยกภาคเทียบ PA', `${TM[MONTH]} ${YEAR} เทียบ PA`);
+    const s = newSlide('สรุปยอดขาย DP แยก AB + CC แยกภาคเทียบ PA', `${TMF[MONTH]} ${YEAR} เทียบ PA`);
     table(s, rows, [1.3,1.15,1.15,1.15,1.15,1.15,1.15,1.15,1.15,1.15], 1.5);
   }
 
@@ -2294,7 +2312,7 @@ async function buildKpiPptx(MONTH, YEAR){
           CELL(fmt(x.pa_cc)),CELL(fmt(x.act_cc)),CELL(fmtSigned(x.act_cc-x.pa_cc),{color:diffColor(x.act_cc-x.pa_cc)}),
           CELL(fmt(x.pa_t)),CELL(fmt(x.act_t)),CELL(fmtSigned(x.act_t-x.pa_t),{color:diffColor(x.act_t-x.pa_t)})]);
       });
-      const s = newSlide(`ยอดขาย DP แยก AB และ CC ภาค${region} เดือน ${TM[MONTH]} ${YEAR}`, '');
+      const s = newSlide(`ยอดขาย DP แยก AB และ CC ภาค${region} เดือน`, `${TMF[MONTH]} ${YEAR}`);
       table(s, rows, [1.5,1.15,1.15,1.15,1.15,1.15,1.15,1.15,1.15,1.15], 1.3);
     }
   }
