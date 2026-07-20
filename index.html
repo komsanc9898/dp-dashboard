@@ -1283,7 +1283,11 @@ function shBuildMaster(paWb, actWb){
   // ---- File 2 (Actual): per-DP monthly revenue/bills/pieces ----
   function classifyTab(sn){
     const t=String(sn).toLowerCase().replace(/\s+/g,'');
-    const m=t.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)(ab|cc)['’]?(\d{2})/);
+    // Allow month names longer than the 3-letter code (e.g. "July", "Sept", "March") by
+    // permitting extra letters between the recognized 3-letter prefix and the AB/CC token.
+    // Without this, tabs named "July AB'69" failed to match (jul + "y…" ≠ jul + ab) and
+    // the entire month was silently skipped.
+    const m=t.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*?(ab|cc)['’]?(\d{2})/);
     if(!m) return null;
     return {mon:_MON3[m[1]], type:m[2], yy:parseInt(m[3],10)};
   }
