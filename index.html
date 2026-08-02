@@ -784,6 +784,34 @@ function detectAvail(m){
 let AVAIL = detectAvail(DP_MASTER);
 let LATEST_MONTH = AVAIL[CUR_YEAR].length ? Math.max(...AVAIL[CUR_YEAR]) : 5;
 
+/* ============================================================
+   PA เก่า/ใหม่ — สถานะรายเดือนจากคอลัมน์ STATUS (คอลัมน์ A) ของชีต PA
+   ------------------------------------------------------------
+   แท็บ PA เดือน 7-12 ("PA AB 7-1269" / "PA CC 7-1269") มีคอลัมน์ STATUS อยู่
+   คอลัมน์ A ซึ่งระบุเก่า/ใหม่ของแต่ละแถวโดยตรง เดิมค่านี้ถูกอ่านแล้วโดนกฎ
+   3 ชั้น (ชีต "DP ใหม่" / baseline act) เขียนทับทิ้งทั้งหมด ทำให้ไม่มีผลใด ๆ
+   ตอนนี้ค่า STATUS จะถูกเก็บเป็น pa_status[] รายเดือน และใช้เป็นตัวตัดสิน
+   การแบ่งถัง PA เก่า/ใหม่ ตั้งแต่เดือน PA_STATUS_MONTH_FROM เป็นต้นไป
+   * ใช้กับ "PA" เท่านั้น — Act 69 / Act 68 / จำนวน DP ยังยึด d.isNew ตามเดิม
+   * เดือน 1-6 และ DP ที่ไม่มี STATUS ในชีต จะ fallback กลับไปใช้ d.isNew
+     ทำให้ข้อมูล embedded เดิม (ไม่มี pa_status) ยังทำงานได้เหมือนเดิมทุกประการ
+   ============================================================ */
+const PA_STATUS_MONTH_FROM = 7; // 1-based: เดือนแรกที่เริ่มยึด STATUS คอลัมน์ A
+
+function paSlotOf(d, m){ // m = index เดือนแบบ 0-based
+  if(m >= PA_STATUS_MONTH_FROM-1 && d && d.pa_status && d.pa_status[m]!=null)
+    return d.pa_status[m] ? 'new' : 'old';
+  return (d && d.isNew) ? 'new' : 'old';
+}
+// ผลรวม PA ของฝั่งเก่า/ใหม่สำหรับเดือนเดียว โดยยึด paSlotOf รายเดือน
+function paSumByStatus(items, m, wantNew, kind){ // kind: 't' | 'ab' | 'cc'
+  return items.reduce((s,d)=>{
+    if((paSlotOf(d,m)==='new') !== wantNew) return s;
+    const ab=d.pa_ab[m]||0, cc=d.pa_cc[m]||0;
+    return s + (kind==='ab'?ab : kind==='cc'?cc : ab+cc);
+  },0);
+}
+
 function monthAgg(month,year){
   const idx=month-1,z=()=>({total:0,old:0,new:0});
   const ab=z(),cc=z(),pa_ab=z(),pa_cc=z();
@@ -800,8 +828,9 @@ function monthAgg(month,year){
     const aCC=year===2569?dp.act69_cc[idx]:dp.act68_cc[idx];
     const act=aAB+aCC,pAB=dp.pa_ab[idx]||0,pCC=dp.pa_cc[idx]||0;
     const sl=dp.isNew?'new':'old';
+    const psl=paSlotOf(dp,idx); // PA เดือน 7-12 ยึด STATUS คอลัมน์ A; เดือนอื่น = sl
     ab.total+=aAB;ab[sl]+=aAB;cc.total+=aCC;cc[sl]+=aCC;
-    pa_ab.total+=pAB;pa_ab[sl]+=pAB;pa_cc.total+=pCC;pa_cc[sl]+=pCC;
+    pa_ab.total+=pAB;pa_ab[psl]+=pAB;pa_cc.total+=pCC;pa_cc[psl]+=pCC;
     if(dp.phak==='กทม.')bkk+=act;else upc+=act;
     phakAct[dp.phak]=(phakAct[dp.phak]||0)+act;
     phakPa[dp.phak]=(phakPa[dp.phak]||0)+pAB+pCC;
@@ -907,6 +936,21 @@ function buildData(month,year){
       pa:(d.pa_ab[month-1]||0)+(d.pa_cc[month-1]||0),
       act69:(d.act69_ab[month-1]||0)+(d.act69_cc[month-1]||0),
       act68:(d.act68_ab[month-1]||0)+(d.act68_cc[month-1]||0),
+    })).sort((a,b)=>b.pa-a.pa),
+    // ---- diagnostics: DP ที่ STATUS คอลัมน์ A (เดือน 7-12) ขัดกับ isNew ----
+    // แถวเหล่านี้คือแถวที่ PA ถูกจัดถังคนละฝั่งกับ Act เพราะยึดคนละแหล่ง
+    // (PA = คอลัมน์ A ของชีต PA 7-12, Act = กฎ 3 ชั้น) เปิดไว้ให้ตรวจสอบได้
+    pa_status_overrides:DP_MASTER.filter(d=>{
+      if(!d.pa_status) return false;
+      for(let m=PA_STATUS_MONTH_FROM-1;m<12;m++)
+        if(d.pa_status[m]!=null && !!d.pa_status[m]!==!!d.isNew) return true;
+      return false;
+    }).map(d=>({
+      dc:d.dc, dp:d.dp, phak:d.phak,
+      isNew:d.isNew,
+      pa_status_month:(d.pa_status[month-1]==null?null:!!d.pa_status[month-1]),
+      pa:(d.pa_ab[month-1]||0)+(d.pa_cc[month-1]||0),
+      act69:(d.act69_ab[month-1]||0)+(d.act69_cc[month-1]||0),
     })).sort((a,b)=>b.pa-a.pa),
     unmatched_actual_dp:DP_MASTER._unmatchedActualDp||[],
     key_collisions:DP_MASTER._keyCollisions||[],
@@ -1064,6 +1108,9 @@ function shBuildMaster(paWb, actWb){
     let o = byKey.get(k);
     if(!o){
       o = {dc:dc||'', dp:dp||'', phak:phak||'', isNew:!!isNew,
+        // สถานะเก่า/ใหม่รายเดือนที่อ่านมาจากคอลัมน์ STATUS (คอลัมน์ A) ของชีต PA
+        // true = ใหม่, false = เก่า, null = ชีตไม่ได้ระบุ (จะ fallback ไปใช้ isNew)
+        pa_status:[null,null,null,null,null,null,null,null,null,null,null,null],
         pa_ab:z12(), pa_cc:z12(),
         act69_ab:z12(), act69_ab_bill:z12(), act69_ab_pcs:z12(),
         act69_cc:z12(), act69_cc_bill:z12(), act69_cc_pcs:z12(),
@@ -1267,7 +1314,15 @@ function shBuildMaster(paWb, actWb){
       const phak = trusted ? rawPhak : (dcRegion.get(shNormDC(dc))||'');
       const o=ensure(dc,dp,phak,isNew);
       if(isNew) o.isNew=true;
-      for(let m=0;m<12;m++){ const cc=cols.month[m]; if(cc>=0) o[target][m]=shNum(r[cc]); }
+      // เก็บสถานะจากคอลัมน์ STATUS (คอลัมน์ A) ไว้เฉพาะเดือนที่แท็บนี้ให้ข้อมูลมา
+      // แท็บ 7-12 จึงเขียนทับได้เฉพาะเดือน 7-12 ไม่ไปยุ่งกับเดือน 1-6 ของแท็บฐาน
+      const hasStatus = cols.statusCol>=0 &&
+        String(r[cols.statusCol]==null?'':r[cols.statusCol]).trim()!=='';
+      for(let m=0;m<12;m++){
+        const cc=cols.month[m]; if(cc<0) continue;
+        o[target][m]=shNum(r[cc]);
+        if(hasStatus){ if(!o.pa_status) o.pa_status=[null,null,null,null,null,null,null,null,null,null,null,null]; o.pa_status[m]=isNew; }
+      }
     }
   }
   parsePA('PA AB69','pa_ab');
@@ -1581,9 +1636,11 @@ function buildKpiWorkbook(MONTH, YEAR){
     function oldNewSummary(kind){
       const [oldAll, newAll] = splitOldNew(ALL);
       const [oldAct, newAct] = splitOldNew(ACTIVE);
-      const vals = (itemsAll, itemsAct) => [sum(itemsAll, KIND[kind].pa), sum(itemsAct, KIND[kind].act), sum(itemsAll, KIND[kind].act68)];
-      const [pa_o, act_o, a68_o] = vals(oldAll, oldAct);
-      const [pa_n, act_n, a68_n] = vals(newAll, newAct);
+      // PA แบ่งเก่า/ใหม่ด้วย STATUS คอลัมน์ A (เดือน 7-12) ส่วน Act 69 / Act 68 ยังยึด isNew
+      const pa_o = paSumByStatus(ALL, idx, false, kind);
+      const pa_n = paSumByStatus(ALL, idx, true,  kind);
+      const act_o = sum(oldAct, KIND[kind].act), a68_o = sum(oldAll, KIND[kind].act68);
+      const act_n = sum(newAct, KIND[kind].act), a68_n = sum(newAll, KIND[kind].act68);
       return [['  └ Drop Point เก่า', pa_o, act_o, a68_o], ['  └ Drop Point ใหม่', pa_n, act_n, a68_n]];
     }
     function blockSummary(label, pa, act, act68, rows2){
@@ -1616,8 +1673,9 @@ function buildKpiWorkbook(MONTH, YEAR){
       totalRow(sh, r, ['ยอดรวม', pa_ytd, act_ytd, dp_ytd, act68_ytd, gr_ytd, act_ytd-pa_ytd], [null,FMT_INT,FMT_INT,FMT_PCT2,FMT_INT,FMT_PCT2,FMT_INT]); r++;
     }
     const [oldAllG, newAllG] = splitOldNew(ALL);
-    [['  └ Drop Point เก่า', oldAllG], ['  └ Drop Point ใหม่', newAllG]].forEach(([label2, itemsAll])=>{
-      const pa_v = sumYtd(itemsAll,'pa_ab') + sumYtd(itemsAll,'pa_cc');
+    [['  └ Drop Point เก่า', oldAllG, false], ['  └ Drop Point ใหม่', newAllG, true]].forEach(([label2, itemsAll, wantNew])=>{
+      // PA สะสมรวมทีละเดือน เพราะสถานะเก่า/ใหม่ของ PA แปรผันรายเดือน (เดือน 7-12 ยึดคอลัมน์ A)
+      const pa_v = ytdIdx.reduce((s,m)=> s + paSumByStatus(ALL, m, wantNew, 't'), 0);
       const itemsAct = ytdActiveOf(itemsAll);
       const act_v = sumYtd(itemsAct,'act69_ab') + sumYtd(itemsAct,'act69_cc');
       const a68_v = sumYtd(itemsAll,'act68_ab') + sumYtd(itemsAll,'act68_cc');
@@ -2215,9 +2273,11 @@ async function buildKpiPptx(MONTH, YEAR){
   function summarySlide(label, pa, act, act68, kind){
     const [oldAll, newAll] = splitOldNew(ALL);
     const [oldAct, newAct] = splitOldNew(ACTIVE);
-    const vals = (itemsAll, itemsAct) => [sum(itemsAll, KIND[kind].pa), sum(itemsAct, KIND[kind].act), sum(itemsAll, KIND[kind].act68)];
-    const [pa_o, act_o, a68_o] = vals(oldAll, oldAct);
-    const [pa_n, act_n, a68_n] = vals(newAll, newAct);
+    // PA แบ่งเก่า/ใหม่ด้วย STATUS คอลัมน์ A (เดือน 7-12) ส่วน Act 69 / Act 68 ยังยึด isNew
+    const pa_o = paSumByStatus(ALL, idx, false, kind);
+    const pa_n = paSumByStatus(ALL, idx, true,  kind);
+    const act_o = sum(oldAct, KIND[kind].act), a68_o = sum(oldAll, KIND[kind].act68);
+    const act_n = sum(newAct, KIND[kind].act), a68_n = sum(newAll, KIND[kind].act68);
     const head = [HCELL('Drop Point'), HCELL('PA 69'), HCELL('Act 69'), HCELL('Diff'), HCELL('Act 68'), HCELL('Growth')];
     const row = (label2, p, a, a68, boldRow) => {
       const diff = p? (a-p)/p : 0, growth = a68? (a-a68)/a68 : 0;
