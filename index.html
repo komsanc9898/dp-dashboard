@@ -800,7 +800,8 @@ function monthAgg(month,year){
     const aCC=year===2569?dp.act69_cc[idx]:dp.act68_cc[idx];
     const act=aAB+aCC,pAB=dp.pa_ab[idx]||0,pCC=dp.pa_cc[idx]||0;
     const sl=dp.isNew?'new':'old';
-    const slPa=(month<=6&&'isNew_base'in dp)?(dp.isNew_base?'new':'old'):sl;
+    const slPa=(month<=6&&'isNew_base'in dp)?(dp.isNew_base?'new':'old'):
+              (month>=7&&'isNew_patch'in dp)?(dp.isNew_patch?'new':'old'):sl;
     ab.total+=aAB;ab[sl]+=aAB;cc.total+=aCC;cc[sl]+=aCC;
     pa_ab.total+=pAB;pa_ab[slPa]+=pAB;pa_cc.total+=pCC;pa_cc[slPa]+=pCC;
     if(dp.phak==='กทม.')bkk+=act;else upc+=act;
@@ -1276,6 +1277,8 @@ function shBuildMaster(paWb, actWb){
   // Save base-tab isNew (from STATUS col A of PA AB69/CC69) for months 1-6 PA split,
   // before patch tabs (7-12) and the 3-tier rule overwrite isNew.
   [...byKey.values()].forEach(o=>{ o.isNew_base=!!o.isNew; });
+  // Reset isNew so patch-tab STATUS is captured independently from base tabs
+  [...byKey.values()].forEach(o=>{ o.isNew=false; });
   // Corrected PA figures for เดือน 7-12 (ก.ค.-ธ.ค. '69) live in separate tabs in the same
   // file. Confirmed exact tab names from the actual exported workbook: no apostrophe.
   // Same header layout as above, just fewer month columns — parsePA only touches the
@@ -1283,6 +1286,8 @@ function shBuildMaster(paWb, actWb){
   // base tabs above without disturbing ม.ค.-มิ.ย.
   parsePA('PA AB 7-1269','pa_ab',{trustRegion:false});
   parsePA('PA CC 7-1269','pa_cc',{trustRegion:false});
+  // Save patch-tab isNew (from STATUS col A of PA AB/CC 7-1269) for months 7-12 PA split
+  [...byKey.values()].forEach(o=>{ o.isNew_patch=!!o.isNew; });
 
   // ---- File 2 (Actual): per-DP monthly revenue/bills/pieces ----
   function classifyTab(sn){
@@ -1392,7 +1397,7 @@ function shComputeAct68(master){
 function shApplyEmbedded(){
   DP_MASTER=_embeddedBackup; ACT68_SUMMARY=_embeddedSummary;
   // Ensure isNew_base exists for embedded data (fallback = current isNew)
-  DP_MASTER.forEach(d=>{ if(!('isNew_base'in d)) d.isNew_base=!!d.isNew; });
+  DP_MASTER.forEach(d=>{ if(!('isNew_base'in d)) d.isNew_base=!!d.isNew; if(!('isNew_patch'in d)) d.isNew_patch=!!d.isNew; });
   AVAIL=detectAvail(DP_MASTER);
   LATEST_MONTH=AVAIL[CUR_YEAR].length?Math.max(...AVAIL[CUR_YEAR]):5;
   DP_NEW_RATE_LIVE = DP_NEW_RATE; // original hardcoded snapshot as fallback
